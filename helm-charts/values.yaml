@@ -60,18 +60,19 @@ podAnnotations:
 
 # 🛡 Pod Security Context
 # Defines pod-level security settings like file system group and permissions.
-podSecurityContext: {}
-  # fsGroup: 2000  # Uncomment and adjust if we need a specific file system group.
+podSecurityContext:
+  fsGroup: 1000
 
 # 🔒 Security Context for the container
 # We configure how the container should run in terms of security (e.g., non-root user, read-only filesystem).
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL  # Drop unnecessary capabilities to improve security
-  # readOnlyRootFilesystem: true  # Uncomment to enforce read-only file system
-  # runAsNonRoot: true            # Run the container as a non-root user
-  # runAsUser: 1000               # Specify a user to run the container as
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
 
 # 🌐 Service configuration
 # This defines how our application is exposed within the Kubernetes cluster.
@@ -144,3 +145,10 @@ tolerations: []
 # 💡 Affinity
 # We use affinity rules to control pod placement on nodes based on various conditions.
 affinity: {}
+
+# GitHub Container Registry credentials
+imageCredentials:
+  registry: ghcr.io
+  username: "r21gh"  # GitHub username or organization
+  password: ""  # GitHub Personal Access Token (PAT)
+  email: ""     # GitHub email

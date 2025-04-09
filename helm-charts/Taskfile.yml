@@ -303,3 +303,19 @@ tasks:
           helm upgrade {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} -f environments/values-$ENV.yaml --set environment=$ENV  # Upgrade with environment-specific values
         else
           helm upgrade {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}}
+
+  # Task to list services in an environment
+  list-services:
+    desc: List services in an environment
+    silent: true
+    cmds:
+      - |
+        if [ -z "{{.ENV}}" ]; then
+          echo "Usage: task list-services ENV=<environment_name>"
+          exit 1
+        fi
+        
+        # Get cluster IPs and format them with internal DNS names
+        kubectl get svc -n {{.ENV}} -o jsonpath='{range .items[*]}{.spec.clusterIP}{" {{.ENV}}.flask-app.internal\n"}{end}' 2>/dev/null || echo "No cluster IPs found in namespace {{.ENV}}"
+    requires:
+      vars: [ENV]

@@ -1,58 +1,88 @@
 name: CI Pipeline
 
+# Define the events that trigger this pipeline
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]  # Trigger on push to the 'main' branch
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+    branches: [ main ]  # Trigger on PRs targeting the 'main' branch
+  workflow_dispatch:  # Manual trigger from GitHub UI
 
+# Define global environment variables
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  REGISTRY: ghcr.io  # GitHub Container Registry
+  IMAGE_NAME: ${{ github.repository }}  # Use repository name as the image name
+  MIN_COVERAGE: 80  # Minimum required coverage percentage
 
 jobs:
+  # Job to run tests
   test:
     name: Test Application
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
     
     steps:
+    # Step 1: Checkout the repository to the runner
     - uses: actions/checkout@v4
     
+    # Step 2: Set up Python environment
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
         
+    # Step 3: Install dependencies including pytest for testing and coverage reporting
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest pytest-cov
         
+    # Step 4: Run tests and generate coverage reports
     - name: Run tests with coverage
       run: |
-        pytest --cov=app --cov-report=xml
+        pytest --cov=app \
+              --cov-report=xml \
+              --cov-report=html \
+              --cov-report=term-missing \
+              --cov-fail-under=${{ env.MIN_COVERAGE }} \
+              --junitxml=pytest.xml
         
-    - name: Upload coverage reports
+    # Step 5: Upload coverage reports to Codecov
+    - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        file: ./coverage.xml
+        files: ./coverage.xml
+        fail_ci_if_error: true
+        
+    # Step 6: Store coverage reports as artifacts
+    - name: Upload coverage reports as artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: |
+          htmlcov
+          coverage.xml
+          pytest.xml
+        retention-days: 14
 
+  # Job to build and push the Docker image
   build-and-push:
     name: Build and Push Docker Image
-    needs: test
-    runs-on: ubuntu-latest
+    needs: test  # This job depends on the successful completion of the 'test' job
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
     permissions:
-      contents: read
-      packages: write
+      contents: read  # Allow read access to repository contents
+      packages: write  # Allow writing to container registry
     
     steps:
+    # Step 1: Checkout the repository to the runner
     - uses: actions/checkout@v4
     
+    # Step 2: Set up Docker Buildx to enable multi-platform builds
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
+    # Step 3: Log in to GitHub Container Registry with the GITHUB_TOKEN for authentication
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
@@ -60,36 +90,41 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
         
+    # Step 4: Extract metadata (e.g., tags) for the Docker image
     - name: Extract metadata for Docker
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         
+    # Step 5: Build and push the Docker image with cache optimization
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        context: .  # Current directory as the build context
+        push: true  # Push the built image to the registry
+        tags: ${{ steps.meta.outputs.tags }}  # Use the tags extracted in previous step
+        labels: ${{ steps.meta.outputs.labels }}  # Use metadata labels
+        cache-from: type=gha  # Use GitHub Actions cache as a source for Docker build cache
+        cache-to: type=gha,mode=max  # Maximize cache efficiency
 
+  # Job to scan Docker image for vulnerabilities
   security-scan:
     name: Security Scan
-    needs: build-and-push
-    runs-on: ubuntu-latest
+    needs: build-and-push  # This job depends on the successful completion of 'build-and-push'
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
     
     steps:
+    # Step 1: Checkout the repository to the runner
     - uses: actions/checkout@v4
     
+    # Step 2: Run Trivy (vulnerability scanner) to check for known vulnerabilities
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        format: 'table'
-        exit-code: '1'
-        ignore-unfixed: true
-        vuln-type: 'os,library'
-        severity: 'CRITICAL,HIGH' 
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}  # Use the Docker image built in the previous job
+        format: 'table'  # Output format as a human-readable table
+        exit-code: '1'  # Fail the job if critical or high vulnerabilities are found
+        ignore-unfixed: true  # Ignore vulnerabilities that don't have a fix
+        vuln-type: 'os,library'  # Check for OS and library vulnerabilities
+        severity: 'CRITICAL,HIGH'  # Only report critical and high severity vulnerabilities

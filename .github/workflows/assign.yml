@@ -12,14 +12,6 @@ jobs:
         uses: pozil/auto-assign-issue@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          assignees: r21gh  # Replace with your GitHub username or a comma-separated list of usernames
+          assignees: r21gh
           numOfAssignee: 1
           allowSelfAssign: true
-
-  add-reviewers:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Auto-add reviewers
-        uses: kentaro-m/auto-assign-action@v1.2.5
-        with:
-          configuration-path: .github/reviewers.yml 

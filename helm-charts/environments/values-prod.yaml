@@ -16,10 +16,74 @@ autoscaling:
   targetCPUUtilizationPercentage: 75
   targetMemoryUtilizationPercentage: 75
 
+# Monitoring configuration
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 15s
+    scrapeTimeout: 10s
+    labels:
+      release: prometheus
+  prometheusRule:
+    enabled: true
+    namespace: monitoring
+    rules:
+      - alert: HighResponseTime
+        expr: flask_http_request_duration_seconds{quantile="0.9"} > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          description: "90% of requests are taking more than 1 second in production"
+      - alert: HighErrorRate
+        expr: rate(flask_http_request_total{status=~"5.*"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          description: "High error rate detected in production"
+      - alert: HighCPUUsage
+        expr: container_cpu_usage_seconds_total{container="flask-app"} > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          description: "Container CPU usage is above 80%"
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{container="flask-app"} / container_memory_limit_bytes{container="flask-app"} > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          description: "Container memory usage is above 85%"
+
 env:
   apiBaseUrl: "http://api.prod.flask-app.internal"
   logLevel: "WARNING"
   maxConnections: "100"
+
+# Add health check probes
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
 
 # Production-specific ingress annotations
 ingress:
@@ -27,22 +91,15 @@ ingress:
   className: "nginx"
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "8m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-    nginx.ingress.kubernetes.io/secure-backends: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
   hosts:
     - host: "prod.flask-app.internal"
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: flask-app-tls
-      hosts:
-        - "prod.flask-app.internal"
 
 podSecurityContext:
   runAsNonRoot: true

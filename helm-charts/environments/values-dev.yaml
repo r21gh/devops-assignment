@@ -1,21 +1,65 @@
+# Development environment configuration
 environment: dev
 replicaCount: 1
 baseDomain: flask-app.internal
 
 resources:
   limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
     cpu: 200m
     memory: 256Mi
-  requests:
-    cpu: 100m
-    memory: 128Mi
 
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
-  targetMemoryUtilizationPercentage: 80
+# Health check probes
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+# Monitoring configuration
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 15s
+    scrapeTimeout: 10s
+    labels:
+      release: prometheus
+  prometheusRule:
+    enabled: true
+    namespace: monitoring
+    rules:
+      - alert: HighResponseTime
+        expr: flask_http_request_duration_seconds{quantile="0.9"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          description: "90% of requests are taking more than 2 seconds"
+      - alert: HighErrorRate
+        expr: rate(flask_http_request_total{status=~"5.*"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          description: "High error rate detected"
 
 env:
   apiBaseUrl: "http://api.dev.flask-app.internal"
@@ -34,4 +78,22 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
-  tls: [] 
+  tls: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80 

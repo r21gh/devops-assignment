@@ -26,14 +26,20 @@ spec:
 
     spec:
       # Specify image pull secrets if defined
-      {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
-        {{- toYaml . | nindent 8 }}  # Pull images from private registry if needed
-      {{- end }}
+        {{- if .Values.imagePullSecrets }}
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+        {{- end }}
+        - name: {{ .Release.Name }}-registry-secret
       
       serviceAccountName: {{ include "flask-app.serviceAccountName" . }}  # Service account name
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}  # Pod-level security context
+
+      # Add volume for temporary files
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
 
       containers:
         - name: {{ .Chart.Name }}  # Set the container name based on chart name
@@ -42,23 +48,17 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"  # Image repository and tag
           imagePullPolicy: {{ .Values.image.pullPolicy }}  # Image pull policy
 
-          env:  # Environment variables for the container
-            - name: SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "flask-app.fullname" . }}-secrets  # Referencing secret for SECRET_KEY
-                  key: secret-key
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "flask-app.fullname" . }}-secrets  # Referencing secret for DB_PASSWORD
-                  key: db-password
-            - name: API_BASE_URL
-              value: {{ .Values.env.apiBaseUrl | quote }}  # API base URL for environment
-            - name: LOG_LEVEL
-              value: {{ .Values.env.logLevel | quote }}  # Log level setting for app
-            - name: MAX_CONNECTIONS
-              value: {{ .Values.env.maxConnections | quote }}  # Max connections setting
+          # Add volume mount for temporary files
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+
+          # Mount environment variables from ConfigMap and Secret
+          envFrom:
+          - configMapRef:
+              name: {{ .Release.Name }}-config
+          - secretRef:
+              name: {{ .Release.Name }}-secrets
 
           ports:
             - name: http

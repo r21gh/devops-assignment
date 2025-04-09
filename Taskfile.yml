@@ -8,8 +8,91 @@ vars:
   CONTAINER_NAME: flask-app
   DOCKER_FILE: Dockerfile
   PORT: 5000
+  ENVIRONMENTS:
+    sh: ls terraform/environments/
 
 tasks:
+  default:
+    cmds:
+      - task -l
+    silent: true
+
+  # Infrastructure tasks
+  infra:init:
+    desc: Initialize Terraform for a specific environment
+    dir: terraform
+    cmds:
+      - task init ENV={{.ENV}}
+    requires:
+      vars: [ENV]
+
+  infra:plan:
+    desc: Plan Terraform changes for a specific environment
+    dir: terraform
+    cmds:
+      - task plan ENV={{.ENV}}
+    requires:
+      vars: [ENV]
+
+  infra:apply:
+    desc: Apply Terraform changes for a specific environment
+    dir: terraform
+    cmds:
+      - task apply ENV={{.ENV}}
+    requires:
+      vars: [ENV]
+
+  infra:destroy:
+    desc: Destroy Terraform resources for a specific environment
+    dir: terraform
+    cmds:
+      - task destroy ENV={{.ENV}}
+    requires:
+      vars: [ENV]
+
+  # Utility tasks
+  infra:lint:
+    desc: Run all linting tasks for Terraform code
+    dir: terraform
+    cmds:
+      - task lint
+
+  infra:fmt:
+    desc: Fix Terraform formatting
+    dir: terraform
+    cmds:
+      - task fmt
+
+  infra:docs:
+    desc: Generate documentation for Terraform code
+    dir: terraform
+    cmds:
+      - task docs
+
+  infra:clean:
+    desc: Clean up Terraform files
+    dir: terraform
+    cmds:
+      - task clean
+
+  # Setup tasks
+  setup:
+    desc: Setup all required tools and configurations
+    cmds:
+      - cd terraform && task setup
+      - cd terraform && task init:tflint
+
+  # Environment validation
+  validate:env:
+    internal: true
+    cmds:
+      - |
+        if [ -z "{{.ENV}}" ]; then
+          echo "ENV variable is required. Available environments:"
+          task --list-all | grep "ENV=" | cut -d"=" -f2 | sort -u
+          exit 1
+        fi
+
   login:
     desc: Login to GitHub Container Registry
     cmds:
@@ -67,15 +150,28 @@ tasks:
       - docker rmi {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} || true
 
   deploy:all:
-    desc: Deploy to all environments in sequence (dev -> stage -> prod)
+    desc: Deploy to all environments in sequence (dev, stage, and prod)
+    dir: terraform
     cmds:
-      - task: deploy:dev
-      - task: deploy:stage
-      - task: deploy:prod
-
+      - task init ENV=dev
+      - task apply ENV=dev
+      - task init ENV=stage
+      - task apply ENV=stage
+      - task init ENV=prod
+      - task apply ENV=prod
   all:
     desc: Build, tag, and push the Docker image
     cmds:
       - task: build
       - task: tag
       - task: push 
+
+  show:services:
+    desc: Show services across all environments
+    dir: helm-charts
+    silent: true
+    cmds:
+      - |
+        for env in dev stage prod; do
+          task list-services ENV=$env
+        done

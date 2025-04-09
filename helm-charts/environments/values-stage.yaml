@@ -1,21 +1,64 @@
+# Staging environment configuration
 environment: stage
 replicaCount: 2
-baseDomain: flask-app.internal
 
 resources:
   limits:
-    cpu: 500m
-    memory: 512Mi
+    cpu: 750m
+    memory: 768Mi
   requests:
-    cpu: 200m
-    memory: 256Mi
+    cpu: 300m
+    memory: 384Mi
 
-autoscaling:
+# Health check probes
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+# Monitoring configuration
+metrics:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 80
-  targetMemoryUtilizationPercentage: 80
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 15s
+    scrapeTimeout: 10s
+    labels:
+      release: prometheus
+  prometheusRule:
+    enabled: true
+    namespace: monitoring
+    rules:
+      - alert: HighResponseTime
+        expr: flask_http_request_duration_seconds{quantile="0.9"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          description: "90% of requests are taking more than 2 seconds"
+      - alert: HighErrorRate
+        expr: rate(flask_http_request_total{status=~"5.*"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          description: "High error rate detected"
 
 env:
   apiBaseUrl: "http://api.stage.flask-app.internal"
@@ -27,12 +70,30 @@ ingress:
   className: "nginx"
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/proxy-body-size: "8m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
   hosts:
-    - host: stage.flask-app.internal
+    - host: "stage.flask-app.internal"
       paths:
         - path: /
           pathType: Prefix
-  tls: [] 
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80 
