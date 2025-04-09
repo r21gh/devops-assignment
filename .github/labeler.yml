@@ -1,0 +1,32 @@
+terraform:
+  - terraform/**/*
+
+helm:
+  - helm-charts/**/*
+
+docker:
+  - Dockerfile
+  - .dockerignore
+
+github-actions:
+  - .github/**/*
+
+documentation:
+  - '**/*.md'
+  - docs/**/*
+
+python:
+  - '**/*.py'
+  - requirements.txt
+
+dependencies:
+  - requirements.txt
+  - go.mod
+  - go.sum
+  - package.json
+  - package-lock.json
+
+tests:
+  - '**/test_*.py'
+  - '**/tests/**/*'
+  - '**/*_test.go' 

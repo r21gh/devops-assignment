@@ -1,0 +1,40 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Dev"]
+    types:
+      - completed
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy-stage:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment:
+      name: staging
+      url: https://staging.your-domain.com  # Replace with your actual staging URL
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v3
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBECONFIG_STAGE }}
+        
+    - name: Deploy to staging environment
+      run: |
+        helm upgrade --install flask-app ./helm-charts \
+          --namespace stage-flask-app \
+          --create-namespace \
+          --values ./helm-charts/values-stage.yaml \
+          --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+          --set image.tag=${{ github.sha }} 

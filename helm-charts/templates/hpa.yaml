@@ -1,0 +1,38 @@
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "flask-app.fullname" . }}  # Name of the HorizontalPodAutoscaler, dynamically generated from the app name
+  labels:
+    {{- include "flask-app.labels" . | nindent 4 }}  # Labels for identifying the autoscaler
+
+spec:
+  # Scale target reference: the deployment that will be autoscaled
+  scaleTargetRef:
+    apiVersion: apps/v1  # The API version for the target deployment
+    kind: Deployment  # The kind of resource being scaled
+    name: {{ include "flask-app.fullname" . }}  # Name of the target deployment to be autoscaled
+  
+  # Minimum and maximum number of replicas for autoscaling
+  minReplicas: {{ .Values.autoscaling.minReplicas }}  # Minimum number of pods
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}  # Maximum number of pods
+
+  # Metrics to be used for autoscaling (CPU and memory utilization)
+  metrics:
+    # CPU Utilization target
+    - type: Resource
+      resource:
+        name: cpu  # Resource being measured
+        target:
+          type: Utilization  # Autoscaler will aim for a target percentage of CPU utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}  # Target CPU utilization in percentage
+    
+    # Memory Utilization target
+    - type: Resource
+      resource:
+        name: memory  # Resource being measured
+        target:
+          type: Utilization  # Autoscaler will aim for a target percentage of memory utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}  # Target memory utilization in percentage
+
+{{- end }}

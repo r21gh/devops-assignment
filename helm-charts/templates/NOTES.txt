@@ -1,0 +1,42 @@
+# This section determines the application URL based on the service type and ingress configuration.
+# If Ingress is enabled, it generates URLs from the provided hosts and paths.
+
+Thank you for installing {{ .Chart.Name }}.
+
+Your application has been deployed successfully!
+
+{{- if .Values.ingress.enabled }}
+Your application can be accessed via the following URLs:
+{{- range .Values.ingress.hosts }}
+{{- range .paths }}
+  {{- if $.Values.ingress.tls }}
+  - https://{{ $.Values.environment }}.{{ $.Values.baseDomain }}{{ .path }}
+  {{- else }}
+  - http://{{ $.Values.environment }}.{{ $.Values.baseDomain }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+# If the service type is NodePort, extract the NodePort and Node IP for the URL.
+{{- else if contains "NodePort" .Values.service.type }}
+  Get the application URL by running these commands:
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "flask-app.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+
+# If the service type is LoadBalancer, wait for the LoadBalancer IP to be provisioned and then generate the URL.
+{{- else if contains "LoadBalancer" .Values.service.type }}
+  Get the application URL by running these commands:
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "flask-app.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "flask-app.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+
+# If the service type is ClusterIP, forward the port from the pod to localhost for local access.
+{{- else if contains "ClusterIP" .Values.service.type }}
+  The application is available on cluster-internal URL:
+  - http://{{ include "flask-app.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+{{- end }}
+
+For more information about the deployment, run:
+  kubectl get all -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}"

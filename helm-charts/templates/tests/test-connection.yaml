@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "flask-app.fullname" . }}-test-connection"
+  labels:
+    {{- include "flask-app.labels" . | nindent 4 }}
+  annotations:
+    # Specifies that this Pod is used as a Helm test hook.
+    # This enables Helm to run it during chart testing.
+    "helm.sh/hook": test
+    # Delete the pod after test completion
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+    # Ensure test runs after all other resources are ready
+    "helm.sh/hook-weight": "5"
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      # The container runs the 'wget' command to check if the application is accessible.
+      # The 'args' define the URL to test, which is the service URL of the app.
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          echo "Waiting for service to become ready..."
+          sleep 10
+          echo "Testing service connection..."
+          wget --spider --timeout=10 --tries=3 http://{{ include "flask-app.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
+          if [ $? -eq 0 ]; then
+            echo "Successfully connected to root endpoint"
+            wget --spider --timeout=10 --tries=3 http://{{ include "flask-app.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/config
+            if [ $? -eq 0 ]; then
+              echo "Successfully connected to config endpoint"
+              exit 0
+            else
+              echo "Failed to connect to config endpoint"
+              exit 1
+            fi
+          else
+            echo "Failed to connect to root endpoint"
+            exit 1
+          fi
+  restartPolicy: Never
+  # The restartPolicy is set to Never to ensure the Pod does not restart after running.
+  # It is intended for testing purposes, so no restart is needed once the test completes.

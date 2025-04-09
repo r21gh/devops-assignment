@@ -1,0 +1,305 @@
+version: '3'
+
+# Variables section: Define reusable variables for the chart and release
+vars:
+  CHART_NAME: flask-app  # Name of the Helm chart
+  RELEASE_NAME: '{{.CHART_NAME}}-release'  # Release name derived from chart name
+  CHART_PATH: .  # Path to the Helm chart directory
+  VALUES_FILE: values.yaml  # Default values file for the Helm chart
+
+# Task Definitions: 
+tasks:
+
+  # Task to create a Kubernetes namespace if it does not exist
+  create-env:
+    desc: Create the environment if it does not exist
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task create-env -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        echo "Creating environment: $ENV"
+        if ! kubectl get namespace $ENV > /dev/null 2>&1; then  # Check if the namespace exists
+          kubectl create namespace $ENV  # Create namespace if not exists
+          echo "Environment $ENV created successfully"
+        else
+          echo "Environment $ENV already exists"  # If namespace exists
+        fi
+        kubectl get namespace $ENV -o wide  # Show detailed namespace info
+
+  # Task to switch the current context to a specified environment (namespace)
+  switch-env:
+    desc: Switch to the environment
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task switch-env -- <environment_name>"  # Show usage if no environment name is provided
+          echo "Current context: $(kubectl config current-context)"  # Show current kubectl context
+          echo "Available namespaces:"
+          kubectl get namespaces  # List available namespaces
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        if ! kubectl get namespace $ENV > /dev/null 2>&1; then  # Check if the namespace exists
+          echo "Environment $ENV does not exist. Available environments:"
+          kubectl get namespaces  # Show available namespaces if not found
+          exit 1
+        fi
+        kubectl config set-context --current --namespace=$ENV  # Switch kubectl context to the new namespace
+        echo "Switched to environment: $ENV"
+        kubectl config get-contexts  # Show all kubectl contexts
+
+  # Task to retrieve and display information about the current or a specified environment
+  get-env:
+    desc: Get current environment information
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          CURRENT_NS=$(kubectl config view --minify --output 'jsonpath={..namespace}')  # Get current namespace
+          echo "Current environment: $CURRENT_NS"
+          echo "Current context: $(kubectl config current-context)"
+          echo "Available environments:"
+          kubectl get namespaces  # List available namespaces
+        else
+          ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+          if kubectl get namespace $ENV > /dev/null 2>&1; then  # Check if namespace exists
+            echo "Environment information for: $ENV"
+            kubectl get namespace $ENV -o wide  # Show detailed namespace info
+            echo "Namespace details:"
+            kubectl describe namespace $ENV  # Show detailed description of the namespace
+          else
+            echo "Environment $ENV not found. Available environments:"
+            kubectl get namespaces  # Show available namespaces if not found
+          fi
+        fi
+
+  # Task to lint the Helm chart for potential issues
+  lint:
+    desc: Lint the Helm chart
+    cmds:
+      - helm lint {{.CHART_PATH}}  # Lint the Helm chart
+
+  # Task to template the Helm chart (generate Kubernetes manifests without installing them)
+  template:
+    desc: Template the Helm chart
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task template -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        if [ -f "environments/values-$ENV.yaml" ]; then  # Check if environment-specific values file exists
+          helm template {{.RELEASE_NAME}} {{.CHART_PATH}} -f {{.VALUES_FILE}} -f environments/values-$ENV.yaml --set environment=$ENV  # Generate manifests with environment-specific values
+        else
+          helm template {{.RELEASE_NAME}} {{.CHART_PATH}} -f {{.VALUES_FILE}} --set environment=$ENV  # Generate manifests with default values
+        fi
+
+  # Task to install or upgrade a Helm release in a specified environment
+  install:
+    desc: Install or upgrade the Helm chart
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task install -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        if ! kubectl get namespace $ENV > /dev/null 2>&1; then  # Check if namespace exists
+          echo "Environment $ENV does not exist. Creating it..."
+          kubectl create namespace $ENV  # Create the namespace if it doesn't exist
+        fi
+        if [ -f "environments/values-$ENV.yaml" ]; then  # Check if environment-specific values file exists
+          helm upgrade --install {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} -f environments/values-$ENV.yaml --set environment=$ENV  # Install/Upgrade with environment-specific values
+        else
+          helm upgrade --install {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} --set environment=$ENV  # Install/Upgrade with default values
+        fi
+        echo "Waiting for deployment to roll out..."
+        kubectl rollout status deployment/{{.RELEASE_NAME}} -n $ENV --timeout=60s  # Wait for the deployment to complete
+        kubectl get all -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}"  # Show all resources related to the release
+
+  # Task to uninstall a Helm release from a specified environment
+  uninstall:
+    desc: Uninstall the Helm release
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task uninstall -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        helm uninstall {{.RELEASE_NAME}} -n $ENV  # Uninstall the release from the specified namespace
+
+  # Task to list all Helm releases in a specified environment or across all namespaces
+  list:
+    desc: List Helm releases
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Listing releases in all namespaces:"
+          helm list -A  # List releases in all namespaces
+        else
+          ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+          echo "Listing releases in environment $ENV:"
+          helm list -n $ENV  # List releases in the specified namespace
+        fi
+
+  # Task to show the history of a Helm release in a specified environment
+  history:
+    desc: Show release history
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task history -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        helm history {{.RELEASE_NAME}} -n $ENV  # Show release history for the specified release and environment
+
+  # Task to retrieve the computed values for a specified release
+  values:
+    desc: Show computed values
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task values -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        helm get values {{.RELEASE_NAME}} -n $ENV  # Get computed values for the release in the specified namespace
+
+  # Task to check the status of deployments in a specified environment
+  status:
+    desc: Check deployment status
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task status -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        echo "Checking deployment status in environment $ENV..."
+        kubectl get all -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}"  # Show all resources related to the release
+        echo "Checking pod status..."
+        kubectl get pods -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}" -o wide  # Show pod status
+        echo "Checking pod events..."
+        for pod in $(kubectl get pods -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}" -o name); do
+          echo "=== Events for $pod ==="
+          kubectl describe -n $ENV $pod | sed -n '/Events:/,$p'  # Show pod events
+        done
+        echo "Checking pod logs (if available)..."
+        for pod in $(kubectl get pods -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}" -o name); do
+          echo "=== Logs for $pod ==="
+          kubectl logs -n $ENV $pod --tail=50 2>&1  # Show pod logs
+        done
+
+  # Task to gather detailed debugging information for troubleshooting
+  debug:
+    desc: Show detailed debugging information
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task debug -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        echo "Checking image pull status..."
+        kubectl get pods -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}" -o jsonpath='{range .items[*]}{.status.containerStatuses[*].state}{"\n"}{end}'  # Check image pull status
+        echo "Checking node status..."
+        kubectl get nodes  # Show node status
+        echo "Checking storage class..."
+        kubectl get sc  # Show storage classes
+        echo "Checking persistent volumes..."
+        kubectl get pv,pvc -n $ENV  # Show persistent volumes and claims
+
+  # Task to generate Kubernetes manifests and save the output to a file
+  template-output:
+    desc: Template the Helm chart and save the output to a file
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task template-output -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        mkdir -p _output  # Create output directory
+        if [ -f "environments/values-$ENV.yaml" ]; then  # Check if environment-specific values file exists
+          helm template {{.RELEASE_NAME}} {{.CHART_PATH}} -f {{.VALUES_FILE}} -f environments/values-$ENV.yaml --set environment=$ENV > _output/manifests-$ENV.yaml  # Generate and save manifests
+        else
+          helm template {{.RELEASE_NAME}} {{.CHART_PATH}} -f {{.VALUES_FILE}} --set environment=$ENV > _output/manifests-$ENV.yaml  # Generate and save manifests with default values
+        fi
+        echo "Template output saved to _output/manifests-$ENV.yaml"  # Confirmation
+
+  # Task to run Helm tests on the deployed chart
+  test:
+    desc: Run Helm tests on the deployed chart
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task test -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        echo "Running tests in environment $ENV..."
+        helm test {{.RELEASE_NAME}} -n $ENV  # Run Helm tests
+
+  # Task to get Helm releases across all namespaces or in a specific environment
+  get-releases:
+    desc: Get releases in specified environment
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task get-releases -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        if [ "$ENV" = "all" ]; then
+          echo "Listing releases in all namespaces:"
+          helm ls -A  # List releases in all namespaces
+        else
+          echo "Listing releases in environment $ENV:"
+          helm ls -n $ENV  # List releases in the specified namespace
+        fi
+
+  # Task to package the Helm chart into a .tgz file
+  build:
+    desc: Package the Helm chart into a .tgz file
+    cmds:
+      - |
+        if [ -f "environments/values-{{.CLI_ARGS}}.yaml" ]; then  # Check if environment-specific values file exists
+          echo "Building chart with environment {{.CLI_ARGS}} values..."
+          helm package {{.CHART_PATH}} --values environments/values-{{.CLI_ARGS}}.yaml  # Package the chart with environment-specific values
+        else
+          echo "Building chart with default values..."
+          helm package {{.CHART_PATH}}  # Package the chart with default values
+        fi
+
+  # Task to wait for pods to be in a ready state before continuing
+  wait-ready:
+    desc: Wait for the pods to be in a ready state
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task wait-ready -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        echo "Waiting for pods to be ready in environment $ENV..."
+        kubectl wait --for=condition=ready pod -l "app.kubernetes.io/instance={{.RELEASE_NAME}}" -n $ENV --timeout=60s  # Wait for pods to be ready
+
+  # Task to upgrade the Helm release with new values
+  upgrade:
+    desc: Upgrade the Helm chart with new values
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task upgrade -- <environment_name>"  # Usage reminder if environment name is missing
+          exit 1
+        fi
+        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
+        if [ -f "environments/values-$ENV.yaml" ]; then  # Check if environment-specific values file exists
+          helm upgrade {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} -f environments/values-$ENV.yaml --set environment=$ENV  # Upgrade with environment-specific values
+        else
+          helm upgrade {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}}

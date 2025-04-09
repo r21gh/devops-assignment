@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flask-app.fullname" . }}  # Deploying the Flask app with a dynamically generated name
+  labels:
+    {{- include "flask-app.labels" . | nindent 4 }}  # Labels for identifying the deployment
+
+spec:
+  # Replica count based on autoscaling settings
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}  # Define the number of replicas for the app
+  {{- end }}
+  
+  selector:
+    matchLabels:
+      {{- include "flask-app.selectorLabels" . | nindent 6 }}  # Labels for pod selection
+
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}  # Add annotations to the pod if defined
+      {{- end }}
+      labels:
+        {{- include "flask-app.selectorLabels" . | nindent 8 }}  # Label pods with the same selector labels
+
+    spec:
+      # Specify image pull secrets if defined
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}  # Pull images from private registry if needed
+      {{- end }}
+      
+      serviceAccountName: {{ include "flask-app.serviceAccountName" . }}  # Service account name
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}  # Pod-level security context
+
+      containers:
+        - name: {{ .Chart.Name }}  # Set the container name based on chart name
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}  # Security settings for the container
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"  # Image repository and tag
+          imagePullPolicy: {{ .Values.image.pullPolicy }}  # Image pull policy
+
+          env:  # Environment variables for the container
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flask-app.fullname" . }}-secrets  # Referencing secret for SECRET_KEY
+                  key: secret-key
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flask-app.fullname" . }}-secrets  # Referencing secret for DB_PASSWORD
+                  key: db-password
+            - name: API_BASE_URL
+              value: {{ .Values.env.apiBaseUrl | quote }}  # API base URL for environment
+            - name: LOG_LEVEL
+              value: {{ .Values.env.logLevel | quote }}  # Log level setting for app
+            - name: MAX_CONNECTIONS
+              value: {{ .Values.env.maxConnections | quote }}  # Max connections setting
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}  # Exposing HTTP port
+              protocol: TCP
+
+          # Health probes for liveness and readiness checks
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}  # Liveness probe for container health
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}  # Readiness probe to check when the app is ready
+
+          # Resource requests and limits for the container
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}  # Define CPU and memory limits/requests
+
+      # Node selection, affinity, and tolerations for pod placement
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}  # Specify node selector for pod placement
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}  # Affinity rules for pod scheduling
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}  # Tolerations for taints on nodes
+      {{- end }}

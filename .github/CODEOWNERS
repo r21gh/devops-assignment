@@ -1,0 +1,25 @@
+# Default owners for everything in the repo
+* @r21gh
+
+# Terraform configuration owners
+/terraform/ @r21gh
+
+# Helm charts owners
+/helm-charts/ @r21gh
+
+# Application code owners
+/app/ @r21gh
+
+# GitHub Actions workflow owners
+/.github/workflows/ @r21gh
+
+# Docker configuration owners
+/Dockerfile @r21gh
+/.dockerignore @r21gh
+
+# Documentation owners
+*.md @r21gh
+/docs/ @r21gh
+
+# Dependencies owners
+/requirements.txt @r21gh 

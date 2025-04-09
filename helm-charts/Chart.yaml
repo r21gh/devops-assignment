@@ -1,0 +1,70 @@
+# 🎉 apiVersion: v2 - Specify the API version for Helm chart
+# Helm v3+ uses apiVersion v2 for dependency management and modern features!
+apiVersion: v2
+
+# 🏷 name: flask-app - Give our chart a cool name! 
+# This will be the name people use to install our chart with Helm
+name: flask-app
+
+# 📝 description: What does this chart do?
+# Keep it concise, but tell users what they're getting into!
+description: A Helm chart to deploy a Flask-based Python web application.
+
+# 🏗 type: application - Are we deploying an app or just providing reusable templates?
+# Use 'application' for deployable apps (like this Flask app)!
+type: application
+
+# 🚀 version: 0.1.0 - Track the Helm chart version here
+# Every change to the chart (structure, values, etc.) should bump this version!
+version: 0.1.0
+
+# 🌎 appVersion: 1.0.0 - The version of the app we're deploying.
+# Handy for tracking the app version deployed by the chart.
+appVersion: "1.0.0"
+
+# 🔑 keywords: Tags that make our chart easy to find!
+# Add as many as we like—think about what users would search for!
+keywords:
+  - flask       # Flask is the cool Python framework we're using!
+  - python      # This chart is 100% Python-powered!
+  - web         # Web applications FTW!
+  - gunicorn    # We're serving Flask with Gunicorn!
+  - wsgi        # The WSGI server powering Flask apps!
+  - api         # It’s all about the API life!
+
+# 🌐 home: The main URL of our project
+# Point to the GitHub repo, product page, or docs so users can learn more
+home: https://github.com/r21gh/flask-app
+
+# 🔗 sources: Links to our project’s source code
+# It’s always good to let people explore our codebase!
+sources:
+  - https://github.com/r21gh/flask-app
+
+# 👥 maintainers: Who’s in charge of this chart? 
+# Don't leave users in the dark—let them know who to contact if they need help.
+maintainers:
+  - name: Reza Ghanbari
+    email: ghanbari.reza94@gmail.com
+    url: https://github.com/r21gh  # Link to our profile so users can stalk us responsibly
+
+# 📝 annotations: Metadata to help users discover and understand our chart
+# These are particularly useful for ArtifactHub and other repositories!
+annotations:
+  category: Web Applications     # Group our chart in a relevant category on ArtifactHub
+  artifacthub.io/links: |        # Additional links to enrich our project
+    - name: GitHub
+      url: https://github.com/r21gh/flask-app
+  artifacthub.io/license: MIT    # License info—important for open-source software
+  artifacthub.io/maintainers: |  # Who maintains the chart? No secrets here!
+    - name: Reza Ghanbari
+      email: ghanbari.reza94@gmail.com
+
+# 🔗 dependencies: Is our chart dependent on anything else?
+# If our chart needs a database or other resources, list them here!
+# For now, we’re keeping it simple with no dependencies—yay!
+dependencies: []
+
+# 🎨 icon: URL to an image file representing the chart
+# Use an icon for easy identification of the chart in ArtifactHub or other places!
+icon: https://flask.palletsprojects.com/en/stable/_images/flask-horizontal.png

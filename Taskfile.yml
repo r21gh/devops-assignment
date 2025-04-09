@@ -1,0 +1,81 @@
+version: '3'
+
+vars:
+  GITHUB_USERNAME: r21gh
+  DOCKER_REGISTRY: ghcr.io/{{.GITHUB_USERNAME}}
+  IMAGE_NAME: flask-app
+  IMAGE_TAG: latest
+  CONTAINER_NAME: flask-app
+  DOCKER_FILE: Dockerfile
+  PORT: 5000
+
+tasks:
+  login:
+    desc: Login to GitHub Container Registry
+    cmds:
+      - echo "Please run this command manually:"
+      - echo 'export CR_PAT=YOUR_GITHUB_PAT'
+      - echo 'echo $CR_PAT | docker login ghcr.io -u {{.GITHUB_USERNAME}} --password-stdin'
+
+  build:
+    desc: Build the Docker image
+    cmds:
+      - docker build -t {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} -f {{.DOCKER_FILE}} .
+
+  tag:
+    desc: Tag the Docker image
+    deps: [build]
+    cmds:
+      - docker tag {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
+
+  push:
+    desc: Push the Docker image to registry
+    deps: [tag]
+    cmds:
+      - docker push {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
+
+  run:
+    desc: Run the Docker container
+    cmds:
+      - |
+        docker run --name {{.CONTAINER_NAME}} \
+          -d \
+          -p {{.PORT}}:{{.PORT}} \
+          -e SECRET_KEY=dev-secret \
+          -e DB_PASSWORD=dev-password \
+          -e API_BASE_URL=http://api.dev.local \
+          -e LOG_LEVEL=DEBUG \
+          -e MAX_CONNECTIONS=100 \
+          {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
+
+  stop:
+    desc: Stop the Docker container
+    cmds:
+      - docker stop {{.CONTAINER_NAME}} || true
+      - docker rm {{.CONTAINER_NAME}} || true
+
+  logs:
+    desc: View container logs
+    cmds:
+      - docker logs -f {{.CONTAINER_NAME}}
+
+  clean:
+    desc: Clean up Docker resources
+    cmds:
+      - docker stop {{.CONTAINER_NAME}} || true
+      - docker rm {{.CONTAINER_NAME}} || true
+      - docker rmi {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} || true
+
+  deploy:all:
+    desc: Deploy to all environments in sequence (dev -> stage -> prod)
+    cmds:
+      - task: deploy:dev
+      - task: deploy:stage
+      - task: deploy:prod
+
+  all:
+    desc: Build, tag, and push the Docker image
+    cmds:
+      - task: build
+      - task: tag
+      - task: push 

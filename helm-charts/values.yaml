@@ -1,0 +1,146 @@
+# 🚀 Default values for helm-charts
+# This file defines the default values for our Flask application deployment.
+# Variables here will be passed into the templates.
+
+# 🌎 Environment settings
+# We define the environment for the app (dev, stage, prod) for flexible deployments.
+environment: dev  # Can be dev, stage, or prod
+
+# 🌐 Domain configuration
+# We set up the base domain to easily manage different environments.
+baseDomain: flask-app.internal
+
+# 🔁 Replica count for scaling our application.
+# By default, we run 1 replica, but we can scale it up for production or high availability.
+replicaCount: 1
+
+# 🐳 Container image configuration
+# The image repository, pull policy, and tag can be customized for our deployment.
+image:
+  repository: ghcr.io/r21gh/flask-app  # We use the GitHub Container Registry (GHCR)
+  pullPolicy: IfNotPresent             # Pull image only if not already present
+  tag: latest                          # Set the image tag (default to latest, can be overridden)
+
+# 🔑 Application secrets (base64 encoded)
+# These are sensitive variables like keys and passwords that we should securely set.
+secrets:
+  secretKey: ""  # We set the Flask secret key here (will use default if not set)
+  dbPassword: "" # Database password (will use default if not set)
+
+# 🌱 Environment variables
+# We define environment-specific variables for our Flask app.
+env:
+  apiBaseUrl: "http://dev.flask-app.internal"  # API base URL for dev environment
+  logLevel: "INFO"                             # Log level (e.g., DEBUG, INFO, WARN)
+
+# 🔐 Image pull secrets
+# We use this for pulling images from private container registries.
+# More info: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets:
+  - name: github-registry
+
+# 🔄 Overrides for the chart name
+# This is useful if we need to change the default name or use a custom name.
+nameOverride: ""
+fullnameOverride: ""
+
+# 🔐 Service Account configuration
+# Service accounts help us manage permissions and API access for our Pods.
+serviceAccount:
+  create: true               # Should a new service account be created?
+  automount: true            # Automatically mount the service account's API credentials?
+  annotations: {}            # Add custom annotations to the service account (e.g., for RBAC)
+  name: ""                   # Name of the service account (auto-generated if left blank)
+
+# 📜 Pod Annotations for available endpoints
+# We define custom annotations for our app's routes/endpoints. This is useful for monitoring or documentation.
+podAnnotations:
+  endpoints.flask.app/root: "Returns a string response"
+  endpoints.flask.app/config: "Returns application configuration as JSON"
+
+# 🛡 Pod Security Context
+# Defines pod-level security settings like file system group and permissions.
+podSecurityContext: {}
+  # fsGroup: 2000  # Uncomment and adjust if we need a specific file system group.
+
+# 🔒 Security Context for the container
+# We configure how the container should run in terms of security (e.g., non-root user, read-only filesystem).
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL  # Drop unnecessary capabilities to improve security
+  # readOnlyRootFilesystem: true  # Uncomment to enforce read-only file system
+  # runAsNonRoot: true            # Run the container as a non-root user
+  # runAsUser: 1000               # Specify a user to run the container as
+
+# 🌐 Service configuration
+# This defines how our application is exposed within the Kubernetes cluster.
+# More info: https://kubernetes.io/docs/concepts/services-networking/service/
+service:
+  type: ClusterIP   # We choose the type of service: ClusterIP (internal), NodePort, LoadBalancer
+  port: 5000        # We set the port for our application (make sure it matches the container port)
+
+# 🌍 Ingress configuration for external access
+# We define how our app should be exposed to external traffic via Ingress.
+# More info: https://kubernetes.io/docs/concepts/services-networking/ingress/
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: "dev.flask-app.internal"
+      paths:
+        - path: /
+          pathType: Prefix
+        - path: /config
+          pathType: Prefix
+  tls: []
+
+# 💪 Resource configurations
+# We set CPU and memory limits/requests for our pods. Helps us manage resources in Kubernetes.
+resources:
+  limits:
+    cpu: 200m      # Limit CPU usage to 200m (200 milli-cores)
+    memory: 256Mi  # Limit memory usage to 256Mi
+  requests:
+    cpu: 100m      # Request CPU for pod scheduling (e.g., 100 milli-cores)
+    memory: 128Mi  # Request memory for pod scheduling (e.g., 128Mi)
+
+# ⚡ Autoscaling configuration
+# We enable autoscaling to automatically scale our pods based on resource usage.
+autoscaling:
+  enabled: false                    # Enable/disable autoscaling (set to true for production)
+  minReplicas: 1                     # Minimum number of replicas
+  maxReplicas: 3                     # Maximum number of replicas (scale our app up when needed)
+  targetCPUUtilizationPercentage: 80 # Target CPU utilization percentage (for scaling)
+  targetMemoryUtilizationPercentage: 80 # Target memory utilization percentage (for scaling)
+
+# 🛠 Additional Volumes
+# We attach extra volumes to our Deployment definition. Useful for persisting data or adding configs.
+volumes: []
+# Example volume: 
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# 🛠 Additional VolumeMounts
+# We mount extra volumes inside our container for access (e.g., config, secrets).
+volumeMounts: []
+# Example volume mount:
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+# 🧑‍💻 Node Selector
+# We set node selectors to ensure pods are scheduled on specific nodes based on labels.
+nodeSelector: {}
+
+# 🚪 Tolerations
+# We allow pods to be scheduled on nodes with specific taints (e.g., dedicated nodes).
+tolerations: []
+
+# 💡 Affinity
+# We use affinity rules to control pod placement on nodes based on various conditions.
+affinity: {}

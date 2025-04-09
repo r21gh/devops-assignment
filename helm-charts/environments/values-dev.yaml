@@ -1,0 +1,37 @@
+environment: dev
+replicaCount: 1
+baseDomain: flask-app.internal
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+env:
+  apiBaseUrl: "http://api.dev.flask-app.internal"
+  logLevel: "DEBUG"
+  maxConnections: "50"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+  hosts:
+    - host: dev.flask-app.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: [] 
