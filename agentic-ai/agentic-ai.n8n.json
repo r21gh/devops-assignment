@@ -1,0 +1,182 @@
+{
+  "name": "Magnetic AI DevOps Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deploy-flask"
+      },
+      "id": "1",
+      "name": "Input Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { task: $json.body.includes('terraform') ? 'terraform' : 'helm' }}];"
+      },
+      "id": "2",
+      "name": "Task Classification",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const task = $json.task;\nreturn [{ json: { planCommand: task === 'terraform' ? 'terraform plan' : 'helm diff upgrade flask-app ./charts/flask' }}];"
+      },
+      "id": "3",
+      "name": "Planning",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "command": "bash",
+        "arguments": "-c {{$json.planCommand}}"
+      },
+      "id": "4",
+      "name": "Reasoning & Analysis",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { decision: $json.stdout.includes('no changes') ? 'skip' : 'proceed' }}];"
+      },
+      "id": "5",
+      "name": "Decision Making",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "command": "bash",
+        "arguments": "-c {{$json.task === 'terraform' ? 'terraform apply -auto-approve' : 'helm upgrade flask-app ./charts/flask'}}"
+      },
+      "id": "6",
+      "name": "Task Execution",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "conditions": {
+        "boolean": [
+          {
+            "value1": "={{$json.decision}}",
+            "operation": "equal",
+            "value2": "proceed"
+          }
+        ]
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { summary: `Executed: ${$json.command}` }}];"
+      },
+      "id": "7",
+      "name": "Response Generation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#devops",
+        "text": "{{$json.summary}}"
+      },
+      "id": "8",
+      "name": "Slack Notify",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1500, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "your-slack-credentials-id"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Input Trigger": {
+      "main": [
+        [
+          {
+            "node": "Task Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Classification": {
+      "main": [
+        [
+          {
+            "node": "Planning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planning": {
+      "main": [
+        [
+          {
+            "node": "Reasoning & Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reasoning & Analysis": {
+      "main": [
+        [
+          {
+            "node": "Decision Making",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Making": {
+      "main": [
+        [
+          {
+            "node": "Task Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Execution": {
+      "main": [
+        [
+          {
+            "node": "Response Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response Generation": {
+      "main": [
+        [
+          {
+            "node": "Slack Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
