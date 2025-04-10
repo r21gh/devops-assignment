@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: flask-app
+  IMAGE_NAME: r21gh/flask-app
   MIN_COVERAGE: 80
 
 jobs:
