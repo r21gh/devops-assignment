@@ -14,39 +14,46 @@ jobs:
   terraform:
     name: Terraform
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./terraform
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Go-Task
+        uses: arduino/setup-task@v1
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.0.0"
 
-      - name: Terraform Format
-        run: terraform fmt -check -recursive
-        continue-on-error: false
+      - name: Verify Terraform Setup
+        run: task verify:terraform
 
-      - name: Terraform Init
-        run: terraform init -backend=false
+      - name: Format Check
+        run: task infra:fmt
 
-      - name: Terraform Validate
-        run: terraform validate
+      - name: Run Linting
+        run: task infra:lint
 
-      - name: Run tflint
-        uses: terraform-linters/setup-tflint@v4
-        with:
-          tflint_version: v0.50.0
+      - name: Initialize Terraform
+        run: task infra:init ENV=dev
 
-      - name: Show tflint version
-        run: tflint --version
+      - name: Validate Infrastructure
+        run: |
+          cd terraform
+          terraform validate
 
-      - name: Init tflint
-        run: tflint --init
+      - name: Plan Infrastructure Changes
+        if: github.event_name == 'pull_request'
+        run: task infra:plan ENV=dev
+        continue-on-error: true
 
-      - name: Run tflint
-        run: tflint -f compact 
+      - name: Apply Infrastructure Changes
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: task infra:apply ENV=dev
+        env:
+          TF_VAR_github_token: ${{ secrets.GITHUB_TOKEN }} 
