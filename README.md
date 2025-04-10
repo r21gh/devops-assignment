@@ -57,6 +57,7 @@ graph TB
    - Health check configuration
    - Environment variable support
    - Images pushed to docker.io registry
+   - Secure authentication using GitHub secrets for Docker Hub login
 
 3. **Kubernetes Resources**
    - Deployment for pod management
@@ -85,7 +86,8 @@ minikube addons enable metrics-server
 # Build and deploy application
 task setup                  # Install required tools
 task docker:build          # Build Docker image
-task docker:push           # Push image to docker.io
+# Docker login is handled securely through CI/CD secrets
+task docker:push           # Push image to docker.io using configured credentials
 task deploy ENV=dev        # Deploy to dev environment
 
 # Install monitoring stack
@@ -167,12 +169,30 @@ resources:
     memory: 128Mi
 ```
 
-3. **Terraform Variables**:
-```hcl
-environment     = "dev"
-cluster_name    = "flask-cluster"
-instance_type   = "t3.small"
-```
+
+## Docker Authentication and Secrets Management
+
+### Docker Registry Authentication
+The application uses secure Docker registry authentication through multiple methods:
+
+1. **GitHub Actions CI/CD**:
+   - Authentication to GitHub Container Registry (GHCR) is handled automatically using `GITHUB_TOKEN`
+   - Configured in `.github/workflows/ci.yaml` using `docker/login-action@v3`
+
+2. **Local Development**:
+   - For local development, use `task docker:login` which will prompt for secure credential input
+   - Credentials are not stored in plain text in any configuration files
+
+3. **Kubernetes Deployment**:
+   - Image pull secrets are configured in the Helm charts
+   - Secrets are managed through `helm-charts/values.yaml` and `helm-charts/templates/secrets.yaml`
+   - For production deployments, use proper secrets management solutions like HashiCorp Vault or AWS Secrets Manager
+
+### Security Best Practices
+- Never commit Docker credentials to version control
+- Use environment variables or secure secrets management for storing credentials
+- Regularly rotate Docker access tokens
+- Use least-privilege access principles when configuring registry permissions
 
 ## Deployment Verification Checklist
 
