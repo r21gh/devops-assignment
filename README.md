@@ -78,7 +78,6 @@ task infra:apply ENV=stage
 
 ### Monitoring
 - CloudWatch for logs and metrics
-- Prometheus/Grafana for detailed application metrics
 - AWS X-Ray for distributed tracing
 
 ## Networking Strategy
@@ -201,4 +200,191 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+Features:
+- Flask application with health check and configuration endpoints
+- Helm chart for Kubernetes deployment
+- Terraform configuration for infrastructure management
+- Environment-specific configurations 
+
+# Flask App Kubernetes Deployment Guide
+
+This guide explains how to deploy a Flask application on Kubernetes using NodePort service.
+
+## Prerequisites
+
+- Docker Desktop with Kubernetes enabled
+- Minikube installed
+- kubectl CLI
+- Helm v3
+
+## Project Structure
+
+```
+.
+├── app/
+│   ├── app.py              # Flask application
+│   └── requirements.txt    # Python dependencies
+├── helm-charts/            # Helm chart for Kubernetes deployment
+│   ├── templates/          # Kubernetes manifest templates
+│   ├── Chart.yaml         # Chart metadata
+│   └── values.yaml        # Configuration values
+└── Dockerfile             # Container image definition
+```
+
+## Application Details
+
+The Flask application serves a simple HTML page with a welcome message. It's containerized using Docker and deployed to Kubernetes using Helm.
+
+### Key Features:
+- Simple HTML interface
+- Health check endpoint
+- Configuration via environment variables
+- Logging middleware
+
+## Deployment Steps
+
+1. **Build and Push Docker Image**
+   ```bash
+   docker build -t r21gh/flask-app:latest .
+   docker push r21gh/flask-app:latest
+   ```
+
+2. **Deploy to Kubernetes using Helm**
+   ```bash
+   # Create namespace
+   kubectl create namespace dev
+
+   # Install Helm chart
+   helm install flask-app-release-dev ./helm-charts -n dev
+   ```
+
+3. **Verify Deployment**
+   ```bash
+   # Check pods and services
+   kubectl get pods,svc -n dev
+   ```
+
+   Expected output:
+   ```
+   NAME                                         READY   STATUS    RESTARTS   AGE
+   pod/flask-app-release-dev-xxxxxx-xxxxx       1/1     Running   0          1m
+
+   NAME                            TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+   service/flask-app-release-dev   NodePort   10.96.xx.xx    <none>        8080:30080/TCP   1m
+   ```
+
+## Accessing the Application
+
+When using Minikube, there are two ways to access the application:
+
+### Method 1: Using Minikube Service (Recommended)
+```bash
+minikube service flask-app-release-dev -n dev
+```
+This command will:
+- Create a tunnel to the service
+- Open the application in your default browser
+- Display the URL (usually something like http://127.0.0.1:random_port)
+
+### Method 2: Using Minikube Tunnel
+1. Start the tunnel:
+   ```bash
+   minikube tunnel
+   ```
+2. Access the application at:
+   ```
+   http://127.0.0.1:30080
+   ```
+
+## Configuration
+
+### Service Configuration (values.yaml)
+```yaml
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30080
+```
+
+### Environment Variables
+- `LOG_LEVEL`: Set logging level (default: INFO)
+- `APP_PORT`: Application port (default: 8080)
+- `SECRET_KEY`: Secret key for the application
+- `DB_PASSWORD`: Database password
+- `API_BASE_URL`: Base URL for API
+- `MAX_CONNECTIONS`: Maximum number of connections
+
+## Troubleshooting
+
+1. **Cannot access the application**
+   - Verify pods are running: `kubectl get pods -n dev`
+   - Check service configuration: `kubectl get svc -n dev`
+   - Ensure Minikube is running: `minikube status`
+   - Try using `minikube service` command for access
+
+2. **Pod not starting**
+   - Check pod logs: `kubectl logs -n dev <pod-name>`
+   - Describe pod: `kubectl describe pod -n dev <pod-name>`
+
+3. **Service not accessible**
+   - Verify NodePort configuration: `kubectl describe svc -n dev flask-app-release-dev`
+   - Check Minikube IP: `minikube ip`
+   - Use `minikube service` command for proper access
+
+## Cleanup
+
+To remove the deployment:
+```bash
+# Delete Helm release
+helm uninstall flask-app-release-dev -n dev
+
+# Delete namespace (optional)
+kubectl delete namespace dev
+```
+
+## Additional Commands
+
+### Useful kubectl commands
+```bash
+# Get pod logs
+kubectl logs -n dev <pod-name>
+
+# Describe service
+kubectl describe svc -n dev flask-app-release-dev
+
+# Port forward to pod
+kubectl port-forward -n dev svc/flask-app-release-dev 8080:8080
+```
+
+### Helm commands
+```bash
+# Upgrade deployment
+helm upgrade flask-app-release-dev ./helm-charts -n dev
+
+# List releases
+helm list -n dev
+
+# Get release status
+helm status flask-app-release-dev -n dev
+```
+
+## Security Considerations
+
+1. The application runs as a non-root user in the container
+2. Resource limits are set to prevent resource exhaustion
+3. Health checks are implemented for better monitoring
+4. Logging is configured for debugging and audit purposes
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details. 

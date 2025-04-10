@@ -25,13 +25,6 @@ spec:
         {{- include "flask-app.selectorLabels" . | nindent 8 }}  # Label pods with the same selector labels
 
     spec:
-      # Specify image pull secrets if defined
-      imagePullSecrets:
-        {{- if .Values.imagePullSecrets }}
-{{ toYaml .Values.imagePullSecrets | indent 8 }}
-        {{- end }}
-        - name: {{ .Release.Name }}-registry-secret
-      
       serviceAccountName: {{ include "flask-app.serviceAccountName" . }}  # Service account name
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}  # Pod-level security context
@@ -55,8 +48,6 @@ spec:
 
           # Mount environment variables from ConfigMap and Secret
           envFrom:
-          - configMapRef:
-              name: {{ .Release.Name }}-config
           - secretRef:
               name: {{ .Release.Name }}-secrets
 
@@ -67,9 +58,23 @@ spec:
 
           # Health probes for liveness and readiness checks
           livenessProbe:
-            {{- toYaml .Values.livenessProbe | nindent 12 }}  # Liveness probe for container health
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           readinessProbe:
-            {{- toYaml .Values.readinessProbe | nindent 12 }}  # Readiness probe to check when the app is ready
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
 
           # Resource requests and limits for the container
           resources:

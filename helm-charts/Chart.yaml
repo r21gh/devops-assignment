@@ -30,18 +30,18 @@ keywords:
   - web         # Web applications FTW!
   - gunicorn    # We're serving Flask with Gunicorn!
   - wsgi        # The WSGI server powering Flask apps!
-  - api         # It’s all about the API life!
+  - api         # It's all about the API life!
 
 # 🌐 home: The main URL of our project
 # Point to the GitHub repo, product page, or docs so users can learn more
 home: https://github.com/r21gh/flask-app
 
-# 🔗 sources: Links to our project’s source code
-# It’s always good to let people explore our codebase!
+# 🔗 sources: Links to our project's source code
+# It's always good to let people explore our codebase!
 sources:
   - https://github.com/r21gh/flask-app
 
-# 👥 maintainers: Who’s in charge of this chart? 
+# 👥 maintainers: Who's in charge of this chart? 
 # Don't leave users in the dark—let them know who to contact if they need help.
 maintainers:
   - name: Reza Ghanbari
@@ -62,7 +62,7 @@ annotations:
 
 # 🔗 dependencies: Is our chart dependent on anything else?
 # If our chart needs a database or other resources, list them here!
-# For now, we’re keeping it simple with no dependencies—yay!
+# For now, we're keeping it simple with no dependencies—yay!
 dependencies: []
 
 # 🎨 icon: URL to an image file representing the chart

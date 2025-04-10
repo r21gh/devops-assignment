@@ -1,49 +1,90 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response, render_template_string
 import os
-from prometheus_flask_exporter import PrometheusMetrics
-from prometheus_client import Counter, Histogram, Info
+import logging
+from logging.handlers import RotatingFileHandler
 import time
+
+# Get log level from environment variable
+log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
+
+# Configure logging
+logging.basicConfig(
+    level=log_level,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+logger.info(f'Logger initialized with level: {log_level_name}')
 
 app = Flask(__name__)
 
-# Initialize Prometheus metrics
-metrics = PrometheusMetrics(app)
+# HTML template for the home page
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flask App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .message {
+            color: #666;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Flask App</h1>
+        <div class="message">
+            {{ message }}
+        </div>
+    </div>
+</body>
+</html>
+"""
 
-# Custom metrics
-request_count = Counter('flask_request_count', 'Total number of requests by endpoint', ['endpoint', 'method'])
-request_latency = Histogram('flask_request_latency_seconds', 'Request latency in seconds', ['endpoint'])
-app_info = Info('flask_app_info', 'Application information')
-
-# Set static information about the app
-app_info.info({
-    'version': os.getenv('APP_VERSION', 'dev'),
-    'environment': os.getenv('ENVIRONMENT', 'development')
-})
-
+# Request logging middleware
 @app.before_request
-def before_request():
-    request.start_time = time.time()
+def log_request_info():
+    logger.debug('Request Headers: %s', dict(request.headers))
+    logger.info('Request Method: %s, Path: %s', request.method, request.path)
+    if request.data:
+        logger.debug('Request Body: %s', request.get_data().decode())
 
 @app.after_request
-def after_request(response):
-    # Record request latency
-    if hasattr(request, 'start_time'):
-        latency = time.time() - request.start_time
-        request_latency.labels(endpoint=request.endpoint).observe(latency)
-    
-    # Count requests
-    request_count.labels(endpoint=request.endpoint, method=request.method).inc()
-    
+def log_response_info(response):
+    logger.info('Response Status: %s', response.status)
+    logger.debug('Response Headers: %s', dict(response.headers))
     return response
 
 # Default route
 @app.route("/")
 def home():
-    return "Hello, this is a message from your Python app!"
+    logger.info('Processing home route request')
+    message = "Hello, this is a message from your Python app!"
+    return render_template_string(HTML_TEMPLATE, message=message)
 
 # New route that uses secrets and configuration from environment variables
 @app.route("/config")
 def config():
+    logger.info('Processing config route request')
     # Retrieve sensitive and config values from environment variables
     secret_key = os.getenv("SECRET_KEY")
     db_password = os.getenv("DB_PASSWORD")
@@ -65,9 +106,9 @@ def config():
 
 # Health check endpoint
 @app.route("/health")
-@metrics.do_not_track()
 def health():
+    logger.info('Processing health check request')
     return jsonify({"status": "healthy"})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=int(os.getenv("APP_PORT", 8080)))

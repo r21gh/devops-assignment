@@ -16,3 +16,5 @@ venv/
 **/.pytest_cache
 **/*.tgz
 **/_output
+.idea/
+.vscode/

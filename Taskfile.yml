@@ -2,12 +2,12 @@ version: '3'
 
 vars:
   GITHUB_USERNAME: r21gh
-  DOCKER_REGISTRY: ghcr.io/{{.GITHUB_USERNAME}}
+  DOCKER_REGISTRY: r21gh
   IMAGE_NAME: flask-app
   IMAGE_TAG: latest
   CONTAINER_NAME: flask-app
   DOCKER_FILE: Dockerfile
-  PORT: 5000
+  PORT: 8080
   ENVIRONMENTS:
     sh: ls terraform/environments/
 
@@ -94,11 +94,10 @@ tasks:
         fi
 
   login:
-    desc: Login to GitHub Container Registry
+    desc: Login to Docker Hub
     cmds:
       - echo "Please run this command manually:"
-      - echo 'export CR_PAT=YOUR_GITHUB_PAT'
-      - echo 'echo $CR_PAT | docker login ghcr.io -u {{.GITHUB_USERNAME}} --password-stdin'
+      - echo 'docker login -u {{.GITHUB_USERNAME}}'
 
   build:
     desc: Build the Docker image
@@ -127,8 +126,8 @@ tasks:
           -e SECRET_KEY=dev-secret \
           -e DB_PASSWORD=dev-password \
           -e API_BASE_URL=http://api.dev.local \
-          -e LOG_LEVEL=DEBUG \
-          -e MAX_CONNECTIONS=100 \
+          -e LOG_LEVEL={{.LOG_LEVEL | default "INFO"}} \
+          -e APP_PORT={{.PORT}} \
           {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
 
   stop:
@@ -149,22 +148,177 @@ tasks:
       - docker rm {{.CONTAINER_NAME}} || true
       - docker rmi {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} || true
 
-  deploy:all:
-    desc: Deploy to all environments in sequence (dev, stage, and prod)
+  # Dependency check tasks
+  verify:helm-deps:
+    internal: true
+    dir: helm-charts
+    cmds:
+      - |
+        echo "🔍 Verifying Helm dependencies..."
+        # Check if helm is installed
+        if ! command -v helm &> /dev/null; then
+          echo "❌ Helm is not installed"
+          exit 1
+        fi
+        
+        # Check if ingress-nginx repo is added
+        if ! helm repo list | grep -q "ingress-nginx"; then
+          echo "Adding ingress-nginx repository..."
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        fi
+        
+        echo "Updating Helm repositories..."
+        helm repo update
+        
+        # Remove existing Chart.lock if it exists
+        if [ -f "Chart.lock" ]; then
+          echo "Removing existing Chart.lock..."
+          rm Chart.lock
+        fi
+        
+        echo "Building dependencies..."
+        helm dependency build
+        
+        # Verify dependencies are properly synced
+        if ! helm dependency list >/dev/null 2>&1; then
+          echo "❌ Dependencies are not properly synchronized"
+          exit 1
+        fi
+        
+        echo "✅ Helm dependencies verified and synchronized"
+
+  verify:docker-image:
+    internal: true
+    cmds:
+      - |
+        echo "🔍 Verifying Docker image..."
+        if ! docker image inspect {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} >/dev/null 2>&1; then
+          echo "❌ Docker image not found locally. Building..."
+          task build
+        fi
+        echo "✅ Docker image verified"
+
+  verify:kubectl:
+    internal: true
+    cmds:
+      - |
+        echo "🔍 Verifying kubectl configuration..."
+        if ! command -v kubectl &> /dev/null; then
+          echo "❌ kubectl is not installed"
+          exit 1
+        fi
+        if ! kubectl cluster-info &> /dev/null; then
+          echo "❌ kubectl is not configured or cluster is not accessible"
+          exit 1
+        fi
+        echo "✅ kubectl configuration verified"
+
+  verify:terraform:
+    internal: true
     dir: terraform
     cmds:
-      - task init ENV=dev
-      - task apply ENV=dev
-      - task init ENV=stage
-      - task apply ENV=stage
-      - task init ENV=prod
-      - task apply ENV=prod
-  all:
-    desc: Build, tag, and push the Docker image
+      - |
+        echo "🔍 Verifying Terraform configuration..."
+        if ! command -v terraform &> /dev/null; then
+          echo "❌ Terraform is not installed"
+          exit 1
+        fi
+        if [ ! -d "environments/{{.ENV}}" ]; then
+          echo "❌ Environment {{.ENV}} configuration not found"
+          exit 1
+        fi
+        echo "✅ Terraform configuration verified"
+
+  verify:terraform-vars:
+    internal: true
+    dir: terraform/environments/{{.ENV}}
     cmds:
-      - task: build
-      - task: tag
-      - task: push 
+      - |
+        echo "🔍 Verifying Terraform variables..."
+        # Check if strategy variables are declared
+        if ! grep -q "strategy_type" variables.tf || \
+           ! grep -q "strategy_rolling_update_max_surge" variables.tf || \
+           ! grep -q "strategy_rolling_update_max_unavailable" variables.tf; then
+          echo "Adding missing strategy variables..."
+          echo "✅ Terraform variables verified"
+        fi
+
+  verify:helm-release:
+    internal: true
+    dir: helm-charts
+    cmds:
+      - |
+        echo "🔍 Checking existing Helm releases..."
+        if helm list -n {{.ENV}} | grep -q "flask-app-release-{{.ENV}}"; then
+          echo "Found existing release, cleaning up..."
+          helm uninstall flask-app-release-{{.ENV}} -n {{.ENV}} || true
+          # Wait for resources to be cleaned up
+          sleep 5
+        fi
+        echo "✅ Helm release state verified"
+
+  # Helm cleanup task
+  helm:cleanup:
+    desc: Clean up existing Helm releases
+    requires:
+      vars: [ENV]
+    cmds:
+      - |
+        echo "🧹 Cleaning up Helm releases..."
+        RELEASE_NAME="flask-app-release-{{.ENV}}"
+        NAMESPACE="{{.ENV}}"
+        
+        # Check if the release exists
+        if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
+          echo "Found existing release $RELEASE_NAME in namespace $NAMESPACE"
+          helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" || true
+          
+          # Wait for release to be fully uninstalled
+          echo "Waiting for release to be fully uninstalled..."
+          while helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; do
+            sleep 2
+          done
+          
+          # Additional wait to ensure all resources are cleaned up
+          sleep 5
+          echo "✅ Helm release cleaned up"
+        else
+          echo "No existing release found"
+        fi
+
+  deploy:
+    desc: Deploy to a specific environment
+    deps:
+      - verify:helm-deps
+      - verify:docker-image
+      - verify:kubectl
+      - verify:terraform
+      - verify:terraform-vars
+    dir: terraform
+    cmds:
+      - task init ENV={{.ENV}}
+      - task apply ENV={{.ENV}}
+    requires:
+      vars: [ENV]
+
+  deploy:all:
+    desc: Deploy to all environments in sequence (dev, stage, and prod)
+    deps:
+      - verify:helm-deps
+      - verify:docker-image
+      - verify:kubectl
+      - verify:terraform
+    dir: terraform
+    cmds:
+      - |
+        for env in dev stage prod; do
+          echo "🚀 Deploying to $env environment..."
+          ENV=$env task verify:terraform-vars
+          ENV=$env task verify:helm-release
+          ENV=$env task init
+          ENV=$env task apply
+          echo "✅ Deployment to $env complete"
+        done
 
   show:services:
     desc: Show services across all environments

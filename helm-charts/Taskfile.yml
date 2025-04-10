@@ -97,28 +97,57 @@ tasks:
           helm template {{.RELEASE_NAME}} {{.CHART_PATH}} -f {{.VALUES_FILE}} --set environment=$ENV  # Generate manifests with default values
         fi
 
+  # Task to verify dependencies are installed
+  verify-deps:
+    desc: Verify all required dependencies
+    internal: true
+    cmds:
+      - |
+        echo "🔍 Verifying dependencies..."
+        # Check if ingress-nginx repo is added
+        if ! helm repo list | grep -q "ingress-nginx"; then
+          echo "❌ ingress-nginx repo not found"
+          exit 1
+        fi
+        echo "✅ All dependencies verified"
+
+  # Task to setup dependencies
+  deps:
+    desc: Setup all required dependencies
+    cmds:
+      - |
+        echo "🚀 Setting up dependencies..."
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo update
+        helm dependency build
+        helm dependency list
+        echo "✅ Dependencies setup complete"
+
   # Task to install or upgrade a Helm release in a specified environment
   install:
     desc: Install or upgrade the Helm chart
+    deps:
+      - deps
+      - verify-deps
     cmds:
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task install -- <environment_name>"  # Usage reminder if environment name is missing
+          echo "Usage: task install -- <environment_name>"
           exit 1
         fi
-        ENV="{{.CLI_ARGS}}"  # Get environment name from arguments
-        if ! kubectl get namespace $ENV > /dev/null 2>&1; then  # Check if namespace exists
+        ENV="{{.CLI_ARGS}}"
+        if ! kubectl get namespace $ENV > /dev/null 2>&1; then
           echo "Environment $ENV does not exist. Creating it..."
-          kubectl create namespace $ENV  # Create the namespace if it doesn't exist
+          kubectl create namespace $ENV
         fi
-        if [ -f "environments/values-$ENV.yaml" ]; then  # Check if environment-specific values file exists
-          helm upgrade --install {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} -f environments/values-$ENV.yaml --set environment=$ENV  # Install/Upgrade with environment-specific values
+        if [ -f "environments/values-$ENV.yaml" ]; then
+          helm upgrade --install {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} -f environments/values-$ENV.yaml --set environment=$ENV --atomic --timeout 5m
         else
-          helm upgrade --install {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} --set environment=$ENV  # Install/Upgrade with default values
+          helm upgrade --install {{.RELEASE_NAME}} {{.CHART_PATH}} -n $ENV -f {{.VALUES_FILE}} --set environment=$ENV --atomic --timeout 5m
         fi
         echo "Waiting for deployment to roll out..."
-        kubectl rollout status deployment/{{.RELEASE_NAME}} -n $ENV --timeout=60s  # Wait for the deployment to complete
-        kubectl get all -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}"  # Show all resources related to the release
+        kubectl rollout status deployment/{{.RELEASE_NAME}} -n $ENV --timeout=60s
+        kubectl get all -n $ENV -l "app.kubernetes.io/instance={{.RELEASE_NAME}}"
 
   # Task to uninstall a Helm release from a specified environment
   uninstall:

@@ -64,11 +64,32 @@ jobs:
           coverage.xml
           pytest.xml
         retention-days: 14
+  
+          # Job to scan Docker image for vulnerabilities
+  security-scan:
+    name: Security Scan
+    needs: test # This job depends on the successful completion of 'build-and-push'
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+    
+    steps:
+    # Step 1: Checkout the repository to the runner
+    - uses: actions/checkout@v4
+    
+    # Step 2: Run Trivy (vulnerability scanner) to check for known vulnerabilities
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}  # Use the Docker image built in the previous job
+        format: 'table'  # Output format as a human-readable table
+        exit-code: '1'  # Fail the job if critical or high vulnerabilities are found
+        ignore-unfixed: true  # Ignore vulnerabilities that don't have a fix
+        vuln-type: 'os,library'  # Check for OS and library vulnerabilities
+        severity: 'CRITICAL,HIGH'  # Only report critical and high severity vulnerabilities
 
   # Job to build and push the Docker image
   build-and-push:
     name: Build and Push Docker Image
-    needs: test  # This job depends on the successful completion of the 'test' job
+    needs: security-scan  # This job depends on the successful completion of the 'test' job
     runs-on: ubuntu-latest  # Use the latest Ubuntu runner
     permissions:
       contents: read  # Allow read access to repository contents
@@ -108,23 +129,3 @@ jobs:
         cache-from: type=gha  # Use GitHub Actions cache as a source for Docker build cache
         cache-to: type=gha,mode=max  # Maximize cache efficiency
 
-  # Job to scan Docker image for vulnerabilities
-  security-scan:
-    name: Security Scan
-    needs: build-and-push  # This job depends on the successful completion of 'build-and-push'
-    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
-    
-    steps:
-    # Step 1: Checkout the repository to the runner
-    - uses: actions/checkout@v4
-    
-    # Step 2: Run Trivy (vulnerability scanner) to check for known vulnerabilities
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}  # Use the Docker image built in the previous job
-        format: 'table'  # Output format as a human-readable table
-        exit-code: '1'  # Fail the job if critical or high vulnerabilities are found
-        ignore-unfixed: true  # Ignore vulnerabilities that don't have a fix
-        vuln-type: 'os,library'  # Check for OS and library vulnerabilities
-        severity: 'CRITICAL,HIGH'  # Only report critical and high severity vulnerabilities

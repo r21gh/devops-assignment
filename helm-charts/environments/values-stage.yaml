@@ -31,35 +31,6 @@ readinessProbe:
   failureThreshold: 3
   successThreshold: 1
 
-# Monitoring configuration
-metrics:
-  enabled: true
-  serviceMonitor:
-    enabled: true
-    namespace: monitoring
-    interval: 15s
-    scrapeTimeout: 10s
-    labels:
-      release: prometheus
-  prometheusRule:
-    enabled: true
-    namespace: monitoring
-    rules:
-      - alert: HighResponseTime
-        expr: flask_http_request_duration_seconds{quantile="0.9"} > 2
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          description: "90% of requests are taking more than 2 seconds"
-      - alert: HighErrorRate
-        expr: rate(flask_http_request_total{status=~"5.*"}[5m]) > 1
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          description: "High error rate detected"
-
 env:
   apiBaseUrl: "http://api.stage.flask-app.internal"
   logLevel: "INFO"

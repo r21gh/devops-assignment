@@ -17,6 +17,9 @@ spec:
       targetPort: http  # The target port on the container (named 'http' in the container spec)
       protocol: TCP  # Protocol used by the service (TCP is default for HTTP services)
       name: http  # The name of the port, typically used by ingress controllers or other components.
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
       
   # The selector specifies the labels used to identify the set of Pods that this service should route traffic to.
   selector:
