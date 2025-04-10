@@ -56,6 +56,7 @@ graph TB
    - Non-root user for security
    - Health check configuration
    - Environment variable support
+   - Images pushed to docker.io registry
 
 3. **Kubernetes Resources**
    - Deployment for pod management
@@ -84,6 +85,7 @@ minikube addons enable metrics-server
 # Build and deploy application
 task setup                  # Install required tools
 task docker:build          # Build Docker image
+task docker:push           # Push image to docker.io
 task deploy ENV=dev        # Deploy to dev environment
 
 # Install monitoring stack
@@ -253,7 +255,7 @@ kubectl top pods -n dev
 
 | **Layer**              | **Improvements Magnetic AI Can Bring**                                                                 |
 |------------------------|---------------------------------------------------------------------------------------------------------|
-| **Input Processing**   | Natural language deployment triggers: e.g. “Deploy staging with new env vars.”                         |
+| **Input Processing**   | Natural language deployment triggers: e.g. "Deploy staging with new env vars."                         |
 | **Task Classification**| Auto-categorize based on code diff: Terraform vs Helm vs App code                                       |
 | **Planning**           | Auto-detect impacted services/namespaces & generate safe execution plans                                |
 | **Reasoning & Analysis** | Analyze `terraform plan`, `helm diff`, and predict risk levels or rollback needs                      |
