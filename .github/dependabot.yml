@@ -1,0 +1,35 @@
+version: 2
+updates:
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Raise pull requests for version updates against the main branch
+    target-branch: "main"
+    # Labels on pull requests for version updates
+    labels:
+      - "docker"
+      - "dependencies"
+    # Assign reviewers
+    reviewers:
+      - "r21gh"
+    # Limit the number of open pull requests for dependencies
+    open-pull-requests-limit: 5
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Raise pull requests for version updates against the main branch
+    target-branch: "main"
+    # Labels on pull requests for version updates
+    labels:
+      - "github-actions"
+      - "dependencies"
+    # Assign reviewers
+    reviewers:
+      - "r21gh"
+    # Limit the number of open pull requests for dependencies
+    open-pull-requests-limit: 5 

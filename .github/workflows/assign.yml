@@ -9,9 +9,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Auto-assign PR
-        uses: pozil/auto-assign-issue@v1
+        uses: pozil/auto-assign-issue@v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           assignees: r21gh
           numOfAssignee: 1
           allowSelfAssign: true
+        continue-on-error: true
+
+  add-reviews:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add reviewers
+        uses: kentaro-m/auto-assign-action@v2.0.0
+        with:
+          configuration-path: '.github/reviewers.yml'

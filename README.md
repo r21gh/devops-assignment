@@ -1,5 +1,39 @@
 # DevOps Flask Application Deployment
 
+## Agentic AI Workflow
+
+```mermaid
+graph LR
+    subgraph "Input Processing"
+        IT[Input Trigger] --> PP[Prompt Processing]
+        PP --> TC[Task Classification]
+    end
+
+    subgraph "Cognitive Layer"
+        TC --> PL[Planning]
+        PL --> RA[Reasoning & Analysis]
+        RA --> DM[Decision Making]
+    end
+
+    subgraph "Action Layer"
+        DM --> TE[Task Execution]
+        TE --> FD[Feedback & Debugging]
+        FD --> AA[Action Adjustment]
+    end
+
+    subgraph "Output Layer"
+        AA --> RG[Response Generation]
+        RG --> QC[Quality Control]
+        QC --> FO[Final Output]
+    end
+
+    style IT fill:#f9f,stroke:#333,stroke-width:2px
+    style FO fill:#9ff,stroke:#333,stroke-width:2px
+    style PL fill:#ff9,stroke:#333,stroke-width:2px
+    style RA fill:#ff9,stroke:#333,stroke-width:2px
+    style DM fill:#ff9,stroke:#333,stroke-width:2px
+```
+
 This project demonstrates a production-ready Flask application deployment using modern DevOps practices. The solution uses Minikube for local development but is designed to be cloud-native and extensible for AWS production deployments.
 
 ## How It Works

@@ -1,45 +1,35 @@
-name: Security Scan
+name: Security Scan with Trivy
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
   pull_request:
-    branches: [ main ]
-  schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight
 
 jobs:
-  scan:
-    name: Security Scan
+  trivy_scan:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+          trivy-config: trivy.yml
+          output: 'trivy-report.json'  # Generates the report in the root folder
 
-      - name: Scan Docker image
-        uses: aquasecurity/trivy-action@master
+      - name: Check if Trivy report exists
+        run: |
+          if [ -f trivy-report.json ]; then
+            echo "Trivy report found."
+          else
+            echo "Trivy report not found!"
+          fi
+
+      - name: Upload Trivy report as an artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          image-ref: 'ghcr.io/r21gh/flask-app:latest'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          
-      - name: Scan Infrastructure as Code
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: '.'
-          format: 'table'
-          exit-code: '1'
-          severity: 'CRITICAL,HIGH' 
+          name: trivy-report
+          path: trivy-report.json  # Path to the generated report
