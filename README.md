@@ -1,4 +1,4 @@
-# DevOps Flask Application Deployment
+# DevOps Flask Application Deployment [![CI Pipeline](https://github.com/r21gh/devops-assignment/actions/workflows/ci.yaml/badge.svg)](https://github.com/r21gh/devops-assignment/actions/workflows/ci.yaml) [![Security Scan with Trivy](https://github.com/r21gh/devops-assignment/actions/workflows/trivy.yml/badge.svg)](https://github.com/r21gh/devops-assignment/actions/workflows/trivy.yml)
 
 This project demonstrates a production-ready Flask application deployment using modern DevOps practices. The solution uses Minikube for local development but is designed to be cloud-native and extensible for AWS production deployments.
 
