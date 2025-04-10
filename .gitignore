@@ -18,3 +18,4 @@ venv/
 **/_output
 .idea/
 .vscode/
+terraform/environments/**/.terraform/

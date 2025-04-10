@@ -1,5 +1,6 @@
 version: '3'
 
+# Global variables
 vars:
   GITHUB_USERNAME: r21gh
   DOCKER_REGISTRY: r21gh
@@ -11,13 +12,22 @@ vars:
   ENVIRONMENTS:
     sh: ls terraform/environments/
 
+# Task definitions
 tasks:
+  # Default task
   default:
+    desc: Display all available tasks
     cmds:
       - task -l
     silent: true
 
-  # Infrastructure tasks
+  # Infrastructure management tasks
+  infra:
+    desc: Group of infrastructure management tasks
+    cmds:
+      - task -l | grep "infra:"
+    silent: true
+
   infra:init:
     desc: Initialize Terraform for a specific environment
     dir: terraform
@@ -50,7 +60,7 @@ tasks:
     requires:
       vars: [ENV]
 
-  # Utility tasks
+  # Infrastructure utility tasks
   infra:lint:
     desc: Run all linting tasks for Terraform code
     dir: terraform
@@ -75,51 +85,44 @@ tasks:
     cmds:
       - task clean
 
-  # Setup tasks
-  setup:
-    desc: Setup all required tools and configurations
+  # Docker management tasks
+  docker:
+    desc: Group of Docker management tasks
     cmds:
-      - cd terraform && task setup
-      - cd terraform && task init:tflint
+      - task -l | grep "docker:"
+    silent: true
 
-  # Environment validation
-  validate:env:
-    internal: true
-    cmds:
-      - |
-        if [ -z "{{.ENV}}" ]; then
-          echo "ENV variable is required. Available environments:"
-          task --list-all | grep "ENV=" | cut -d"=" -f2 | sort -u
-          exit 1
-        fi
-
-  login:
+  docker:login:
     desc: Login to Docker Hub
     cmds:
-      - echo "Please run this command manually:"
+      - echo "🔑 Please run this command manually:"
       - echo 'docker login -u {{.GITHUB_USERNAME}}'
 
-  build:
+  docker:build:
     desc: Build the Docker image
     cmds:
+      - echo "🏗️  Building Docker image..."
       - docker build -t {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} -f {{.DOCKER_FILE}} .
 
-  tag:
+  docker:tag:
     desc: Tag the Docker image
-    deps: [build]
+    deps: [docker:build]
     cmds:
+      - echo "🏷️  Tagging Docker image..."
       - docker tag {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
 
-  push:
+  docker:push:
     desc: Push the Docker image to registry
-    deps: [tag]
+    deps: [docker:tag]
     cmds:
+      - echo "⬆️  Pushing Docker image to registry..."
       - docker push {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
 
-  run:
+  docker:run:
     desc: Run the Docker container
     cmds:
       - |
+        echo "🚀 Starting Docker container..."
         docker run --name {{.CONTAINER_NAME}} \
           -d \
           -p {{.PORT}}:{{.PORT}} \
@@ -130,56 +133,61 @@ tasks:
           -e APP_PORT={{.PORT}} \
           {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
 
-  stop:
+  docker:stop:
     desc: Stop the Docker container
     cmds:
+      - echo "🛑 Stopping Docker container..."
       - docker stop {{.CONTAINER_NAME}} || true
       - docker rm {{.CONTAINER_NAME}} || true
 
-  logs:
+  docker:logs:
     desc: View container logs
     cmds:
+      - echo "📋 Viewing container logs..."
       - docker logs -f {{.CONTAINER_NAME}}
 
-  clean:
+  docker:clean:
     desc: Clean up Docker resources
     cmds:
+      - echo "🧹 Cleaning up Docker resources..."
       - docker stop {{.CONTAINER_NAME}} || true
       - docker rm {{.CONTAINER_NAME}} || true
       - docker rmi {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} || true
 
-  # Dependency check tasks
+  # Verification tasks
+  verify:
+    desc: Group of verification tasks
+    cmds:
+      - task -l | grep "verify:"
+    silent: true
+
   verify:helm-deps:
     internal: true
     dir: helm-charts
     cmds:
       - |
         echo "🔍 Verifying Helm dependencies..."
-        # Check if helm is installed
         if ! command -v helm &> /dev/null; then
           echo "❌ Helm is not installed"
           exit 1
         fi
         
-        # Check if ingress-nginx repo is added
         if ! helm repo list | grep -q "ingress-nginx"; then
-          echo "Adding ingress-nginx repository..."
+          echo "➕ Adding ingress-nginx repository..."
           helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
         fi
         
-        echo "Updating Helm repositories..."
+        echo "🔄 Updating Helm repositories..."
         helm repo update
         
-        # Remove existing Chart.lock if it exists
         if [ -f "Chart.lock" ]; then
-          echo "Removing existing Chart.lock..."
+          echo "🗑️  Removing existing Chart.lock..."
           rm Chart.lock
         fi
         
-        echo "Building dependencies..."
+        echo "🏗️  Building dependencies..."
         helm dependency build
         
-        # Verify dependencies are properly synced
         if ! helm dependency list >/dev/null 2>&1; then
           echo "❌ Dependencies are not properly synchronized"
           exit 1
@@ -193,8 +201,8 @@ tasks:
       - |
         echo "🔍 Verifying Docker image..."
         if ! docker image inspect {{.DOCKER_REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} >/dev/null 2>&1; then
-          echo "❌ Docker image not found locally. Building..."
-          task build
+          echo "🏗️  Docker image not found locally. Building..."
+          task docker:build
         fi
         echo "✅ Docker image verified"
 
@@ -235,13 +243,12 @@ tasks:
     cmds:
       - |
         echo "🔍 Verifying Terraform variables..."
-        # Check if strategy variables are declared
         if ! grep -q "strategy_type" variables.tf || \
            ! grep -q "strategy_rolling_update_max_surge" variables.tf || \
            ! grep -q "strategy_rolling_update_max_unavailable" variables.tf; then
-          echo "Adding missing strategy variables..."
-          echo "✅ Terraform variables verified"
+          echo "➕ Adding missing strategy variables..."
         fi
+        echo "✅ Terraform variables verified"
 
   verify:helm-release:
     internal: true
@@ -250,42 +257,14 @@ tasks:
       - |
         echo "🔍 Checking existing Helm releases..."
         if helm list -n {{.ENV}} | grep -q "flask-app-release-{{.ENV}}"; then
-          echo "Found existing release, cleaning up..."
+          echo "🧹 Found existing release, cleaning up..."
           helm uninstall flask-app-release-{{.ENV}} -n {{.ENV}} || true
-          # Wait for resources to be cleaned up
+          echo "⏳ Waiting for cleanup..."
           sleep 5
         fi
         echo "✅ Helm release state verified"
 
-  # Helm cleanup task
-  helm:cleanup:
-    desc: Clean up existing Helm releases
-    requires:
-      vars: [ENV]
-    cmds:
-      - |
-        echo "🧹 Cleaning up Helm releases..."
-        RELEASE_NAME="flask-app-release-{{.ENV}}"
-        NAMESPACE="{{.ENV}}"
-        
-        # Check if the release exists
-        if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
-          echo "Found existing release $RELEASE_NAME in namespace $NAMESPACE"
-          helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" || true
-          
-          # Wait for release to be fully uninstalled
-          echo "Waiting for release to be fully uninstalled..."
-          while helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; do
-            sleep 2
-          done
-          
-          # Additional wait to ensure all resources are cleaned up
-          sleep 5
-          echo "✅ Helm release cleaned up"
-        else
-          echo "No existing release found"
-        fi
-
+  # Deployment tasks
   deploy:
     desc: Deploy to a specific environment
     deps:
@@ -296,6 +275,7 @@ tasks:
       - verify:terraform-vars
     dir: terraform
     cmds:
+      - echo "🚀 Deploying to environment {{.ENV}}..."
       - task init ENV={{.ENV}}
       - task apply ENV={{.ENV}}
     requires:
@@ -320,12 +300,82 @@ tasks:
           echo "✅ Deployment to $env complete"
         done
 
+  # Helm tasks
+  helm:cleanup:
+    desc: Clean up existing Helm releases
+    requires:
+      vars: [ENV]
+    cmds:
+      - |
+        echo "🧹 Cleaning up Helm releases..."
+        RELEASE_NAME="flask-app-release-{{.ENV}}"
+        NAMESPACE="{{.ENV}}"
+        
+        if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
+          echo "🗑️  Found existing release $RELEASE_NAME in namespace $NAMESPACE"
+          helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" || true
+          
+          echo "⏳ Waiting for release to be fully uninstalled..."
+          while helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; do
+            sleep 2
+          done
+          
+          sleep 5
+          echo "✅ Helm release cleaned up"
+        else
+          echo "ℹ️  No existing release found"
+        fi
+
+  # Utility tasks
   show:services:
     desc: Show services across all environments
     dir: helm-charts
     silent: true
     cmds:
       - |
+        echo "📋 Listing services across all environments..."
         for env in dev stage prod; do
+          echo "Environment: $env"
           task list-services ENV=$env
         done
+
+  setup:
+    desc: Setup all required tools and configurations
+    cmds:
+      - echo "🛠️  Setting up development environment..."
+      - cd terraform && task setup
+      - cd terraform && task init:tflint
+      - echo "✅ Setup complete"
+
+  # Testing tasks
+  test:
+    desc: Run tests with coverage report
+    cmds:
+      - echo "🧪 Running tests with coverage..."
+      - |
+        python -m pytest \
+          --cov=app \
+          --cov-report=term-missing \
+          --cov-report=html:coverage \
+          tests/ -v
+      - echo "✨ Coverage report generated in coverage/index.html"
+
+  test:clean:
+    desc: Clean up test artifacts
+    cmds:
+      - |
+        echo "🧹 Cleaning up test artifacts..."
+        rm -rf .pytest_cache
+        rm -rf .coverage
+        rm -rf coverage/
+        rm -rf htmlcov/
+        find . -type d -name "__pycache__" -exec rm -rf {} +
+        echo "✅ Test artifacts cleaned"
+
+  test:setup:
+    desc: Install test dependencies
+    cmds:
+      - |
+        echo "📦 Installing test dependencies..."
+        pip install pytest pytest-cov
+        echo "✅ Test dependencies installed"

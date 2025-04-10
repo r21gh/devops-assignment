@@ -1,103 +1,145 @@
-# Default values for helm-charts
-# This file defines the default values for our Flask application deployment.
-# Variables here will be passed into the templates.
+# Default values for Helm chart deployment of the Flask application.
+# This file defines configurable parameters that will be passed into the Helm templates
+# to dynamically generate Kubernetes manifests tailored to different environments.
 
-# Environment settings
-# We define the environment for the app (dev, stage, prod) for flexible deployments.
-environment: dev  # Can be dev, stage, or prod
+# ------------------------------------------------------------------------------
+# General environment configuration
+# ------------------------------------------------------------------------------
+# Define the target environment for the deployment.
+# Valid options: dev, stage, prod.
+# This setting can be used to conditionally configure environment-specific behaviors.
+environment: dev
 
+# ------------------------------------------------------------------------------
 # Domain configuration
-# We set up the base domain to easily manage different environments.
+# ------------------------------------------------------------------------------
+# Base domain used for internal routing and service discovery.
+# Helps differentiate URLs across environments.
 baseDomain: flask-app.internal
 
-# Application configuration
-# We define the number of replicas for our application.
-# By default, we run 1 replica, but we can scale it up for production or high availability.
+# ------------------------------------------------------------------------------
+# Application deployment configuration
+# ------------------------------------------------------------------------------
+# Define the number of replicas (Pods) for the application deployment.
+# Increase the count for better availability or load handling in production.
 replicaCount: 1
 
-# Container image configuration
-# The image repository, pull policy, and tag can be customized for our deployment.
+# ------------------------------------------------------------------------------
+# Container image settings
+# ------------------------------------------------------------------------------
+# Specifies the container image to deploy, including the repository, pull policy, and tag.
+# These settings allow teams to version, update, and manage deployment images.
 image:
-  repository: r21gh/flask-app  # Using Docker Hub repository
-  pullPolicy: Always
-  tag: latest
+  repository: r21gh/flask-app        # Docker Hub repository for the Flask application
+  pullPolicy: Always                 # Always pull the latest image on deployment
+  tag: latest                        # Image tag to deploy (e.g., latest, v1.0.0)
 
-# Application secrets
-# These are sensitive variables like keys and passwords that we should securely set.
+# ------------------------------------------------------------------------------
+# Secret management
+# ------------------------------------------------------------------------------
+# Store sensitive data such as application secrets or passwords.
+# These should be managed securely and ideally injected through external secret managers.
 secrets:
-  secretKey: "dev-secret-key"
-  dbPassword: "dev-password"
+  secretKey: "dev-secret-key"        # Flask application secret key
+  dbPassword: "dev-password"         # Password for database connection
 
+# ------------------------------------------------------------------------------
 # Environment variables
-# We define environment-specific variables for our Flask app.
+# ------------------------------------------------------------------------------
+# Application-level environment variables to customize runtime behavior.
+# These can be used to inject configuration without modifying the application code.
 env:
-  apiBaseUrl: "http://dev.flask-app.internal"  # API base URL for dev environment
-  logLevel: "INFO"                             # Log level (e.g., DEBUG, INFO, WARN)
+  apiBaseUrl: "http://dev.flask-app.internal"  # Base URL for backend API calls
+  logLevel: "INFO"                             # Logging level (DEBUG, INFO, WARN, ERROR)
 
-# Image pull secrets for private registries
-# We use this for pulling images from private container registries.
-# More info: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+# ------------------------------------------------------------------------------
+# Image pull secrets
+# ------------------------------------------------------------------------------
+# Provide authentication credentials to pull images from private registries.
+# For Docker Hub or other registry integrations, refer to Kubernetes documentation.
 imagePullSecrets: []
 
-# Chart name overrides
-# This is useful if we need to change the default name or use a custom name.
+# ------------------------------------------------------------------------------
+# Naming overrides
+# ------------------------------------------------------------------------------
+# Customize the release name or fully-qualified resource names.
+# Useful in multi-tenant clusters or when deploying multiple versions.
 nameOverride: ""
 fullnameOverride: ""
 
+# ------------------------------------------------------------------------------
 # Service Account configuration
-# Service accounts help us manage permissions and API access for our Pods.
+# ------------------------------------------------------------------------------
+# Controls service account behavior for the application Pods.
+# These settings define access rights to interact with the Kubernetes API and other services.
 serviceAccount:
-  create: true               # Should a new service account be created?
-  automount: true            # Automatically mount the service account's API credentials?
-  annotations: {}            # Add custom annotations to the service account (e.g., for RBAC)
-  name: ""                   # Name of the service account (auto-generated if left blank)
+  create: true                      # Automatically create a new service account
+  automount: true                   # Mount the service account token into the container
+  annotations: {}                   # Optional annotations for integrations like IAM roles
+  name: ""                          # Custom service account name (defaults to generated name)
 
+# ------------------------------------------------------------------------------
 # Pod annotations
-# We define custom annotations for our app's routes/endpoints. This is useful for monitoring or documentation.
+# ------------------------------------------------------------------------------
+# Add metadata to Pods for observability, monitoring, or documentation.
+# Useful for API documentation tools, custom metrics, and service maps.
 podAnnotations:
-  endpoints.flask.app/root: "Returns a string response"
-  endpoints.flask.app/config: "Returns application configuration as JSON"
+  endpoints.flask.app/root: "Returns a string response"                    # Root endpoint
+  endpoints.flask.app/config: "Returns application configuration as JSON"  # Config endpoint
 
-# Security contexts
-# Defines pod-level security settings like file system group and permissions.
+# ------------------------------------------------------------------------------
+# Pod-level security context
+# ------------------------------------------------------------------------------
+# Define security settings at the Pod level, such as filesystem group ownership.
+# These settings enhance container security posture in multi-tenant environments.
 podSecurityContext:
-  fsGroup: 1000
+  fsGroup: 1000  # Filesystem group for shared volume permissions
 
-# Security Context for the container
-# We configure how the container should run in terms of security (e.g., non-root user, read-only filesystem).
+# ------------------------------------------------------------------------------
+# Container-level security context
+# ------------------------------------------------------------------------------
+# Enforce security best practices for the container runtime.
+# This configuration ensures the container runs as a non-root user with restricted privileges.
 securityContext:
   capabilities:
     drop:
-    - ALL
-  runAsNonRoot: true
-  runAsUser: 1000
-  runAsGroup: 1000
-  allowPrivilegeEscalation: false
+    - ALL                           # Drop all Linux capabilities by default
+  runAsNonRoot: true                # Ensure the container does not run as root
+  runAsUser: 1000                   # Specify non-root user ID
+  runAsGroup: 1000                  # Specify non-root group ID
+  allowPrivilegeEscalation: false  # Disallow privilege escalation (e.g., via sudo)
 
-# Service configuration
-# This defines how our application is exposed within the Kubernetes cluster.
-# More info: https://kubernetes.io/docs/concepts/services-networking/service/
+# ------------------------------------------------------------------------------
+# Kubernetes Service configuration
+# ------------------------------------------------------------------------------
+# Define how the application is exposed inside or outside the Kubernetes cluster.
+# NodePort exposes the service on a static port on each Node.
 service:
-  type: NodePort   # Changed to NodePort for direct access
-  port: 8080
-  nodePort: 30080  # Fixed NodePort for consistent access
+  type: NodePort                    # Options: ClusterIP, NodePort, LoadBalancer
+  port: 8080                        # Internal service port
+  nodePort: 30080                   # External node port (static for predictability)
 
-# Resource configuration
-# We set CPU and memory limits/requests for our pods. Helps us manage resources in Kubernetes.
+# ------------------------------------------------------------------------------
+# Resource requests and limits
+# ------------------------------------------------------------------------------
+# Requests: minimum resources guaranteed for scheduling.
+# Limits: maximum resources the container can use.
+# Helps ensure application stability and fair resource sharing in the cluster.
 resources:
   limits:
-    cpu: 200m      # Limit CPU usage to 200m (200 milli-cores)
-    memory: 256Mi  # Limit memory usage to 256Mi
+    cpu: 200m                       # Max 200 millicores of CPU
+    memory: 256Mi                  # Max 256 MiB of RAM
   requests:
-    cpu: 100m      # Request CPU for pod scheduling (e.g., 100 milli-cores)
-    memory: 128Mi  # Request memory for pod scheduling (e.g., 128Mi)
+    cpu: 100m                       # Min 100 millicores of CPU
+    memory: 128Mi                  # Min 128 MiB of RAM
 
-# Additional configurations
-# We set node selectors to ensure pods are scheduled on specific nodes based on labels.
-nodeSelector: {}
+# ------------------------------------------------------------------------------
+# Scheduling preferences
+# ------------------------------------------------------------------------------
+# Define constraints to control where Pods can run.
+# These can be used to implement policies like high availability, workload segregation, etc.
+nodeSelector: {}                   # Schedule on nodes with specific labels (e.g., role=backend)
 
-# We allow pods to be scheduled on nodes with specific taints (e.g., dedicated nodes).
-tolerations: []
+tolerations: []                    # Allow scheduling on tainted nodes (e.g., for critical workloads)
 
-# We use affinity rules to control pod placement on nodes based on various conditions.
-affinity: {}
+affinity: {}                       # Control Pod distribution with rules (e.g., avoid co-located Pods)
