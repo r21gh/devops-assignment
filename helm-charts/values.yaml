@@ -152,3 +152,48 @@ imageCredentials:
   username: "r21gh"  # GitHub username or organization
   password: ""  # GitHub Personal Access Token (PAT)
   email: ""     # GitHub email
+
+monitoring:
+  enabled: true
+  namespace: monitoring
+
+  prometheus:
+    enabled: true
+    version: "25.8.0"
+    retention: "15d"
+    persistentVolume:
+      size: "10Gi"
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+    scrapeInterval: "15s"
+    evaluationInterval: "15s"
+
+  grafana:
+    enabled: true
+    version: "7.0.19"
+    persistentVolume:
+      enabled: true
+      size: "10Gi"
+    adminUser: "admin"
+    adminPassword: "admin"  # Change this in production!
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: true
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      hosts:
+        - grafana.local

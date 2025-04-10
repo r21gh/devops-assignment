@@ -19,4 +19,14 @@ module "flask_app" {
   extra_set_values = {
     "replicaCount" = var.replica_count
   }
+}
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  namespace              = "monitoring"
+  prometheus_values_file = "${path.module}/monitoring/prometheus-values.yaml"
+  grafana_values_file    = "${path.module}/monitoring/grafana-values.yaml"
+
+  depends_on = [module.flask_app]
 } 
