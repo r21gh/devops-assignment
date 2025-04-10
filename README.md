@@ -495,7 +495,6 @@ graph TB
 ### 1. Scalability Implementation
 
 #### Infrastructure Scalability
-```yaml
 Kubernetes Cluster:
   Node Autoscaling:
     - Minimum: 3 nodes
@@ -511,10 +510,8 @@ Kubernetes Cluster:
       - CPU utilization
       - Custom metrics
       - Request rate
-```
 
 #### Application Scalability
-```yaml
 Horizontal Pod Autoscaling:
   Deployment:
     - Rolling updates
@@ -525,10 +522,8 @@ Horizontal Pod Autoscaling:
     - Service mesh routing
     - Session affinity
     - Connection draining
-```
 
 #### Data Layer Scalability
-```yaml
 Database:
   - Read replicas
   - Connection pooling
@@ -539,7 +534,6 @@ Cache:
   - Distributed caching
   - Cache invalidation
   - TTL policies
-```
 
 ### 2. High Availability Design
 
@@ -568,7 +562,6 @@ graph LR
 ```
 
 #### Redundancy Implementation
-```yaml
 Components:
   Control Plane:
     - Multi-master setup
@@ -584,7 +577,6 @@ Components:
     - Redundant load balancers
     - Multiple ingress controllers
     - Cross-AZ connectivity
-```
 
 ### 3. Security Architecture
 
@@ -603,7 +595,7 @@ graph TB
 ```
 
 #### Implementation Details
-```yaml
+
 Edge Security:
   - WAF rules
   - DDoS protection
@@ -627,12 +619,11 @@ Data Security:
   - Encryption in transit
   - Key rotation
   - Access auditing
-```
 
 ### 4. Fault Tolerance Mechanisms
 
 #### Failure Detection and Recovery
-```yaml
+
 Health Checks:
   Liveness Probe:
     - HTTP endpoint check
@@ -649,22 +640,20 @@ Circuit Breakers:
   - Timeout configuration
   - Retry policies
   - Fallback mechanisms
-```
 
 #### Resilience Patterns
-```yaml
+
 Implementation:
   - Retry with exponential backoff
   - Circuit breaker pattern
   - Bulkhead pattern
   - Fallback strategies
   - Graceful degradation
-```
 
 ### 5. Monitoring and Alerting
 
 #### Metrics Collection
-```yaml
+
 System Metrics:
   - Node health
   - Pod status
@@ -681,10 +670,9 @@ Custom Metrics:
   - SLI measurements
   - Business KPIs
   - User experience
-```
 
 #### Alert Configuration
-```yaml
+
 Alerting Rules:
   Infrastructure:
     - Node availability < 80%
@@ -697,12 +685,11 @@ Alerting Rules:
     - P95 latency > 500ms
     - Success rate < 99.9%
     - Concurrent users > threshold
-```
 
 ### 6. Disaster Recovery
 
 #### Backup Strategy
-```yaml
+
 Components:
   Etcd:
     - Scheduled snapshots
@@ -718,10 +705,9 @@ Components:
     - GitOps versioning
     - Infrastructure as Code
     - Secret backups
-```
 
 #### Recovery Procedures
-```yaml
+
 Recovery Plans:
   - RTO: < 4 hours
   - RPO: < 15 minutes
@@ -731,12 +717,11 @@ Procedures:
   - Manual intervention points
   - Communication plan
   - Escalation path
-```
 
 ### 7. Performance Optimization
 
 #### Resource Management
-```yaml
+
 Optimization Areas:
   Compute:
     - Right-sized containers
@@ -755,7 +740,6 @@ Optimization Areas:
     - Network policies
     - Load balancing
     - Traffic routing
-```
 
 ### 8. Implementation Best Practices
 
@@ -901,21 +885,19 @@ Availability Zone C:
 ### 4. DNS and Service Discovery
 
 1. **External DNS**
-   ```yaml
+   
    Route 53:
      - Public hosted zone for external access
      - Health checks for endpoints
      - Failover routing policies
      - Geolocation routing (optional)
-   ```
 
 2. **Internal DNS**
-   ```yaml
+
    CoreDNS (EKS):
      - Service discovery
      - Pod DNS resolution
      - External DNS integration
-   ```
 
 ### 5. Network Policies
 
@@ -959,21 +941,19 @@ spec:
 ### 7. Monitoring and Logging
 
 1. **Network Monitoring**
-   ```yaml
+
    VPC Flow Logs:
      - Capture: ACCEPT/REJECT traffic
      - Destination: CloudWatch Logs
      - Retention: 30 days
-   ```
 
 2. **Performance Monitoring**
-   ```yaml
+
    CloudWatch Metrics:
      - NetworkIn/NetworkOut
      - ConnectionCount
      - ProcessedBytes
      - HealthyHostCount
-   ```
 
 ### 8. Cost Optimization
 
@@ -1314,152 +1294,7 @@ graph TB
     end
 ```
 
-### 1. Pipeline Configuration (GitHub Actions)
-
-```yaml
-# .github/workflows/ci-cd.yml
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-env:
-  AWS_REGION: us-west-2
-  ECR_REPOSITORY: flask-app
-  EKS_CLUSTER: main-cluster
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      - name: Run Tests
-        run: |
-          pip install -r requirements.txt
-          python -m pytest tests/
-
-  security-scan:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          ignore-unfixed: true
-          format: 'sarif'
-          severity: 'CRITICAL,HIGH'
-
-  build:
-    needs: security-scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-      
-      - name: Build and push
-        run: |
-          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPOSITORY
-          docker build -t $ECR_REPOSITORY:$GITHUB_SHA .
-          docker push $ECR_REPOSITORY:$GITHUB_SHA
-
-  deploy-dev:
-    needs: build
-    runs-on: ubuntu-latest
-    environment: development
-    steps:
-      - name: Deploy to Dev
-        run: |
-          aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
-          helm upgrade --install flask-app ./helm/flask-app \
-            --namespace dev \
-            --set image.tag=$GITHUB_SHA \
-            --values ./helm/flask-app/values-dev.yaml
-
-  deploy-staging:
-    needs: deploy-dev
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Deploy to Staging
-        run: |
-          aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
-          helm upgrade --install flask-app ./helm/flask-app \
-            --namespace staging \
-            --set image.tag=$GITHUB_SHA \
-            --values ./helm/flask-app/values-staging.yaml
-
-  deploy-prod:
-    needs: deploy-staging
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Deploy to Production
-        run: |
-          aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
-          helm upgrade --install flask-app ./helm/flask-app \
-            --namespace prod \
-            --set image.tag=$GITHUB_SHA \
-            --values ./helm/flask-app/values-prod.yaml
-```
-
-### 2. Environment-Specific Configurations
-
-1. **Helm Values Files**:
-```yaml
-# values-dev.yaml
-environment: dev
-replicaCount: 1
-resources:
-  limits:
-    cpu: 200m
-    memory: 256Mi
-
-# values-staging.yaml
-environment: staging
-replicaCount: 2
-resources:
-  limits:
-    cpu: 500m
-    memory: 512Mi
-
-# values-prod.yaml
-environment: prod
-replicaCount: 3
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-```
-
-2. **Environment Variables**:
-```yaml
-# .github/workflows/env/dev.yml
-env:
-  LOG_LEVEL: DEBUG
-  MONITORING_ENABLED: true
-  ALERT_THRESHOLD: high
-
-# .github/workflows/env/prod.yml
-env:
-  LOG_LEVEL: INFO
-  MONITORING_ENABLED: true
-  ALERT_THRESHOLD: medium
-```
-
-### 3. Deployment Strategy
+### Deployment Strategy
 
 1. **Progressive Deployment**:
 ```mermaid
@@ -1470,128 +1305,7 @@ graph LR
     D -->|Auto| E[Health Check]
 ```
 
-2. **Rollback Strategy**:
-```yaml
-# Automated Rollback Configuration
-helm:
-  rollback:
-    enabled: true
-    timeout: 300
-    cleanup: true
-    force: true
-    recreate: true
-```
-
-### 4. Security and Compliance
-
-1. **Secret Management**:
-```yaml
-# GitHub Actions Secrets
-secrets:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-```
-
-2. **Security Scanning**:
-```yaml
-# Security Scan Configuration
-security:
-  vulnerabilityScanning:
-    enabled: true
-    blockers:
-      - critical
-      - high
-  containerScanning:
-    enabled: true
-  secretScanning:
-    enabled: true
-```
-
-### 5. Monitoring and Alerts
-
-1. **Pipeline Metrics**:
-```yaml
-metrics:
-  - name: deployment_duration
-    type: gauge
-    labels:
-      - environment
-      - status
-  - name: test_coverage
-    type: gauge
-    labels:
-      - component
-```
-
-2. **Alert Configuration**:
-```yaml
-alerts:
-  - name: DeploymentFailed
-    severity: critical
-    condition: deployment_duration > 600
-    notification:
-      slack: "#deployments"
-      email: "devops@company.com"
-```
-
-### 6. Automation Scripts
-
-1. **Deployment Verification**:
-```bash
-#!/bin/bash
-# verify-deployment.sh
-
-check_deployment() {
-    kubectl rollout status deployment/flask-app -n $ENVIRONMENT
-    if [ $? -ne 0 ]; then
-        echo "Deployment failed"
-        exit 1
-    fi
-}
-
-check_health() {
-    curl -f http://$SERVICE_URL/health/live
-    if [ $? -ne 0 ]; then
-        echo "Health check failed"
-        exit 1
-    fi
-}
-
-main() {
-    check_deployment
-    check_health
-}
-
-main
-```
-
-2. **Environment Setup**:
-```bash
-#!/bin/bash
-# setup-environment.sh
-
-setup_namespace() {
-    kubectl create namespace $ENVIRONMENT
-    kubectl label namespace $ENVIRONMENT environment=$ENVIRONMENT
-}
-
-setup_monitoring() {
-    helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
-        --namespace monitoring-$ENVIRONMENT \
-        --values monitoring-values-$ENVIRONMENT.yaml
-}
-
-main() {
-    setup_namespace
-    setup_monitoring
-}
-
-main
-```
-
-### 7. Best Practices
+### Best Practices
 
 1. **Version Control**:
    - Branch protection rules
@@ -1808,7 +1522,7 @@ graph TB
 ### Impact Analysis
 
 1. **Development Velocity**:
-   ```yaml
+
    Positive Impacts:
      - Standardized workflows
      - Automated deployments
@@ -1818,10 +1532,9 @@ graph TB
      - Initial setup time
      - Learning curve
      - Tool complexity
-   ```
 
 2. **Operational Overhead**:
-   ```yaml
+   
    Positive Impacts:
      - Automated management
      - Centralized monitoring
@@ -1831,10 +1544,9 @@ graph TB
      - Infrastructure maintenance
      - Multiple tools to manage
      - Debugging complexity
-   ```
 
 3. **Cost Implications**:
-   ```yaml
+
    Positive Impacts:
      - Resource optimization
      - Scaling efficiency
@@ -1844,7 +1556,6 @@ graph TB
      - Infrastructure costs
      - Tool licensing
      - Training requirements
-   ```
 
 ### Mitigation Strategies
 
@@ -1912,7 +1623,7 @@ graph TB
 ### 1. Infrastructure Enhancements
 
 #### Multi-Region Support
-```yaml
+
 Implementation:
   - Global load balancing
   - Cross-region data replication
@@ -1924,10 +1635,8 @@ Benefits:
   - Disaster recovery
   - Better user experience
   - Geographic compliance
-```
 
 #### Service Mesh Integration
-```yaml
 Features:
   - Advanced traffic management
   - Service-to-service encryption
@@ -1939,12 +1648,11 @@ Tools:
   - Envoy proxy integration
   - mTLS implementation
   - Traffic policies
-```
 
 ### 2. Security Improvements
 
 #### Zero Trust Architecture
-```yaml
+
 Components:
   - Identity-based access
   - Just-in-time access
@@ -1956,10 +1664,9 @@ Implementation:
   - Pod identity enforcement
   - Network policy enhancement
   - Behavioral monitoring
-```
 
 #### Advanced Threat Protection
-```yaml
+
 Features:
   - Runtime security monitoring
   - Automated threat response
@@ -1971,12 +1678,11 @@ Tools:
   - OPA/Gatekeeper policies
   - Aqua/Twistlock security
   - EFK stack for audit logs
-```
 
 ### 3. Observability Enhancements
 
 #### Distributed Tracing
-```yaml
+
 Implementation:
   - OpenTelemetry integration
   - Trace sampling configuration
@@ -1988,10 +1694,9 @@ Components:
   - Tempo integration
   - Trace visualization
   - Performance analysis
-```
 
 #### Advanced Monitoring
-```yaml
+
 Features:
   - Custom metric collection
   - Business KPI tracking
@@ -2003,12 +1708,11 @@ Tools:
   - Custom exporters
   - AlertManager enhancements
   - Grafana dashboards
-```
 
 ### 4. Developer Experience
 
 #### GitOps Enhancement
-```yaml
+
 Implementation:
   - ArgoCD/Flux deployment
   - Application of Apps pattern
@@ -2020,10 +1724,9 @@ Features:
   - Environment promotion
   - Configuration validation
   - Rollback automation
-```
 
 #### Local Development
-```yaml
+
 Improvements:
   - Development container support
   - Hot reload capabilities
@@ -2035,12 +1738,11 @@ Tools:
   - Telepresence for debugging
   - Skaffold automation
   - VSCode extensions
-```
 
 ### 5. Performance Optimization
 
 #### Caching Strategy
-```yaml
+
 Implementation:
   - Multi-level caching
   - Cache warming
@@ -2052,10 +1754,9 @@ Components:
   - CDN integration
   - Browser caching
   - API caching
-```
 
 #### Resource Optimization
-```yaml
+
 Features:
   - Vertical pod autoscaling
   - Cost-based scheduling
@@ -2067,12 +1768,11 @@ Tools:
   - Goldilocks integration
   - Cost monitoring
   - Spot instance manager
-```
 
 ### 6. Compliance and Governance
 
 #### Policy Enforcement
-```yaml
+
 Implementation:
   - OPA/Gatekeeper policies
   - Admission controllers
@@ -2084,10 +1784,9 @@ Policies:
   - Security standards
   - Cost limits
   - Naming conventions
-```
 
 #### Automated Compliance
-```yaml
+
 Features:
   - Compliance scanning
   - Automated reporting
@@ -2099,12 +1798,11 @@ Standards:
   - HIPAA requirements
   - GDPR compliance
   - PCI DSS standards
-```
 
 ### 7. AI/ML Integration
 
 #### Intelligent Operations
-```yaml
+
 Features:
   - Predictive scaling
   - Anomaly detection
@@ -2116,10 +1814,9 @@ Implementation:
   - Training pipelines
   - Feature engineering
   - Model monitoring
-```
 
 #### ChatOps Integration
-```yaml
+
 Features:
   - Slack/Teams integration
   - Natural language commands
@@ -2131,12 +1828,11 @@ Tools:
   - NLP processing
   - Workflow automation
   - Knowledge base
-```
 
 ### 8. Cost Management
 
 #### FinOps Implementation
-```yaml
+
 Features:
   - Cost allocation
   - Budget monitoring
@@ -2148,7 +1844,6 @@ Tools:
   - AWS Cost Explorer
   - Resource tagging
   - Cost forecasting
-```
 
 ### Implementation Priority Matrix
 
