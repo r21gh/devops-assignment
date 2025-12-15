@@ -42,7 +42,7 @@ jobs:
         run: task test
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: coverage-reports
           path: |
