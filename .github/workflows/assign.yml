@@ -21,6 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add reviewers
-        uses: kentaro-m/auto-assign-action@v2.0.0
+        uses: kentaro-m/auto-assign-action@v2.0.1
         with:
           configuration-path: '.github/reviewers.yml'
